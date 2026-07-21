@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
-import { Home, TrendingUp, BookMarked, History as HistoryIcon, Search, Play, Music, Gamepad2, Newspaper, Trophy } from 'lucide-react';
+import { Home, TrendingUp, BookMarked, History as HistoryIcon, Search, Play, Music, Gamepad2, Newspaper, Trophy, Menu, X } from 'lucide-react';
 import './index.css';
-import { fetchTrending, fetchSearch, fetchCategory, fetchSuggestions, PaginatedResponse } from './api';
-import type { Video } from './api';
+import { fetchTrending, fetchSearch, fetchCategory, fetchSuggestions } from './api';
+import type { Video, PaginatedResponse } from './api';
 import { useLocalStorage } from './hooks/useLocalStorage';
 
 // --- COMPONENTS ---
 
-const Navbar = () => {
+const Navbar = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -44,20 +44,25 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="glass-panel" style={{
+    <nav className="glass-panel navbar" style={{
       height: '70px', position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       padding: '0 24px', borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
       borderTop: 'none', borderLeft: 'none', borderRight: 'none',
     }}>
-      <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}>
-        <div style={{ width: '40px', height: '40px', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Play fill="white" stroke="none" size={20} />
-        </div>
-        <h1 className="gradient-text" style={{ fontSize: '24px', fontWeight: 800 }}>AuraStream</h1>
-      </Link>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <button className="mobile-menu-btn" onClick={toggleSidebar} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', display: 'none' }}>
+          <Menu size={24} />
+        </button>
+        <Link to="/" className="brand-logo" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}>
+          <div style={{ width: '40px', height: '40px', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Play fill="white" stroke="none" size={20} />
+          </div>
+          <h1 className="gradient-text" style={{ fontSize: '24px', fontWeight: 800 }}>AuraStream</h1>
+        </Link>
+      </div>
       
-      <form ref={searchRef} onSubmit={(e) => handleSearch(e)} style={{ position: 'relative', width: '400px' }}>
+      <form className="search-form" ref={searchRef} onSubmit={(e) => handleSearch(e)} style={{ position: 'relative', width: '400px' }}>
         <div style={{ display: 'flex', gap: '8px', background: 'var(--bg-tertiary)', padding: '8px 16px', borderRadius: '24px', border: '1px solid var(--border-color)' }}>
           <Search size={20} color="var(--text-secondary)" />
           <input 
@@ -98,9 +103,14 @@ const Navbar = () => {
   );
 };
 
-const Sidebar = () => {
+const Sidebar = ({ isOpen, closeSidebar }: { isOpen: boolean, closeSidebar: () => void }) => {
   const location = useLocation();
   const isActive = (path: string) => location.pathname === path;
+
+  // Close sidebar on mobile when navigating
+  useEffect(() => {
+    closeSidebar();
+  }, [location.pathname]);
 
   const NavItem = ({ to, icon, label }: { to: string, icon: React.ReactNode, label: string }) => (
     <Link to={to} className={`sidebar-item hover-lift ${isActive(to) ? 'active' : ''}`} style={{ 
@@ -115,21 +125,24 @@ const Sidebar = () => {
   );
 
   return (
-    <aside style={{ width: '240px', height: '100%', borderRight: '1px solid var(--border-color)', padding: '24px', display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto' }}>
-      <NavItem to="/" icon={<Home size={20} />} label="Home" />
-      <NavItem to="/trending" icon={<TrendingUp size={20} />} label="Trending" />
-      
-      <hr style={{ borderColor: 'var(--border-color)', margin: '16px 0' }} />
-      <div style={{ color: 'var(--text-muted)', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', marginBottom: '8px', paddingLeft: '12px' }}>Categories</div>
-      <NavItem to="/category/music" icon={<Music size={20} />} label="Music" />
-      <NavItem to="/category/gaming" icon={<Gamepad2 size={20} />} label="Gaming" />
-      <NavItem to="/category/news" icon={<Newspaper size={20} />} label="News" />
-      <NavItem to="/category/sports" icon={<Trophy size={20} />} label="Sports" />
+    <>
+      <div className={`sidebar-overlay ${isOpen ? 'open' : ''}`} onClick={closeSidebar} />
+      <aside className={`sidebar ${isOpen ? 'open' : ''}`} style={{ width: '240px', height: '100%', borderRight: '1px solid var(--border-color)', padding: '24px', display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto' }}>
+        <NavItem to="/" icon={<Home size={20} />} label="Home" />
+        <NavItem to="/trending" icon={<TrendingUp size={20} />} label="Trending" />
+        
+        <hr style={{ borderColor: 'var(--border-color)', margin: '16px 0' }} />
+        <div style={{ color: 'var(--text-muted)', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', marginBottom: '8px', paddingLeft: '12px' }}>Categories</div>
+        <NavItem to="/category/music" icon={<Music size={20} />} label="Music" />
+        <NavItem to="/category/gaming" icon={<Gamepad2 size={20} />} label="Gaming" />
+        <NavItem to="/category/news" icon={<Newspaper size={20} />} label="News" />
+        <NavItem to="/category/sports" icon={<Trophy size={20} />} label="Sports" />
 
-      <hr style={{ borderColor: 'var(--border-color)', margin: '16px 0' }} />
-      <NavItem to="/library" icon={<BookMarked size={20} />} label="Library" />
-      <NavItem to="/history" icon={<HistoryIcon size={20} />} label="History" />
-    </aside>
+        <hr style={{ borderColor: 'var(--border-color)', margin: '16px 0' }} />
+        <NavItem to="/library" icon={<BookMarked size={20} />} label="Library" />
+        <NavItem to="/history" icon={<HistoryIcon size={20} />} label="History" />
+      </aside>
+    </>
   );
 };
 
@@ -235,7 +248,7 @@ const FeedPage = ({ fetchFunction, title }: { fetchFunction: (continuation?: str
   return (
     <div style={{ padding: '24px' }}>
       <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '24px' }}>{title}</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
+      <div className="video-grid">
         {videos.map((v, i) => {
           if (videos.length === i + 1) {
             return (
@@ -285,7 +298,7 @@ const StoragePage = ({ storageKey, title, emptyMessage }: { storageKey: string, 
       {videos.length === 0 ? (
         <p style={{ color: 'var(--text-secondary)' }}>{emptyMessage}</p>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
+        <div className="video-grid">
           {videos.map(v => <VideoCard key={v.id} video={v} />)}
         </div>
       )}
@@ -357,12 +370,15 @@ const WatchPage = () => {
 // --- APP ---
 
 function App() {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
   return (
     <BrowserRouter>
       <div className="app-container" style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
-        <Navbar />
+        <Navbar toggleSidebar={toggleSidebar} />
         <div className="main-content" style={{ display: 'flex', flex: 1, marginTop: '70px', overflow: 'hidden' }}>
-          <Sidebar />
+          <Sidebar isOpen={isSidebarOpen} closeSidebar={() => setIsSidebarOpen(false)} />
           <main className="content-area" id="scrollable-content" style={{ flex: 1, overflowY: 'auto' }}>
             <Routes>
               <Route path="/" element={<HomePage />} />

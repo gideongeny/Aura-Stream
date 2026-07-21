@@ -138,3 +138,91 @@ body {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+/* --- RESPONSIVE DESIGN --- */
+
+/* Sidebar Overlay */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+  z-index: 150;
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+}
+
+.sidebar-overlay.open {
+  display: block;
+  opacity: 1;
+}
+
+/* Grid Layout overrides - handled by CSS Grid minmax naturally, but we can force it on tiny screens */
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+/* Mobile Devices */
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: block !important;
+  }
+  
+  .brand-logo h1 {
+    display: none; /* Hide AuraStream text to save space for search */
+  }
+
+  .navbar {
+    padding: 0 12px !important;
+  }
+
+  .search-form {
+    width: auto !important;
+    flex: 1;
+    margin-left: 12px;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 70px;
+    left: 0;
+    bottom: 0;
+    z-index: 200;
+    background: var(--bg-secondary);
+    transform: translateX(-100%);
+    transition: transform var(--transition-bounce);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .video-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .content-area {
+    padding: 12px !important;
+  }
+}
+
+/* Small Tablets */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .video-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+}
+
+/* Large Screens (TVs) */
+@media (min-width: 1400px) {
+  .video-grid {
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  }
+}
+
