@@ -5,11 +5,11 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
   
   const query = req.query.q || '';
-  if (!query) return res.status(200).json([]);
+  if (!query && !req.query.continuation) return res.status(200).json({ videos: [], continuation: null });
   
   try {
-    const videos = await innertubeSearch(query);
-    res.status(200).json(videos);
+    const data = await innertubeSearch(query, req.query.continuation);
+    res.status(200).json(data);
   } catch (e) {
     console.error('search error:', e.message);
     res.status(500).json({ error: e.message });

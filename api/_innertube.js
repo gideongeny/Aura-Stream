@@ -47,14 +47,29 @@ function parseVideoRenderer(renderer) {
     publishedText: getText(renderer.publishedTimeText),
     thumbnail: getBestThumbnail(renderer.thumbnail?.thumbnails) ||
       `https://img.youtube.com/vi/${renderer.videoId}/hqdefault.jpg`,
+    channelThumbnail: getBestThumbnail(renderer.channelThumbnailSupportedRenderers?.channelThumbnailWithLinkRenderer?.thumbnail?.thumbnails),
     lengthSeconds: parseDuration(getText(renderer.lengthText)),
   };
 }
 
 function extractVideosFromSearch(data) {
   const videos = [];
-  const sections = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents
-    ?.sectionListRenderer?.contents || [];
+  let continuation = null;
+  
+  // Normal search results
+  let sections = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents;
+  
+  // Continuation results
+  if (!sections) {
+    const onResponseReceivedCommands = data?.onResponseReceivedCommands || [];
+    for (const cmd of onResponseReceivedCommands) {
+      if (cmd.appendContinuationItemsAction) {
+        sections = cmd.appendContinuationItemsAction.continuationItems;
+      }
+    }
+  }
+
+  if (!sections) return { videos: [], continuation: null };
 
   for (const section of sections) {
     const items = section?.itemSectionRenderer?.contents || [];
@@ -67,19 +82,33 @@ function extractVideosFromSearch(data) {
         if (sv) videos.push(sv);
       }
     }
+    
+    // Check for continuation
+    if (section.continuationItemRenderer) {
+      continuation = section.continuationItemRenderer.continuationEndpoint?.continuationCommand?.token;
+    }
   }
-  return videos;
+  return { videos, continuation };
 }
 
-async function innertubeSearch(query) {
-  const res = await fetch('https://www.youtube.com/youtubei/v1/search', {
+async function innertubeSearch(query, continuationToken = null) {
+  const url = 'https://www.youtube.com/youtubei/v1/search';
+  const body = { context: makeContext() };
+  
+  if (continuationToken) {
+    body.continuation = continuationToken;
+  } else {
+    body.query = query;
+  }
+
+  const res = await fetch(url, {
     method: 'POST',
     headers: INNERTUBE_HEADERS,
-    body: JSON.stringify({ context: makeContext(), query }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`InnerTube search failed: ${res.status}`);
   const data = await res.json();
   return extractVideosFromSearch(data);
 }
 
-module.exports = { innertubeSearch };
+module.exports = { innertubeSearch, INNERTUBE_HEADERS, makeContext, getText };

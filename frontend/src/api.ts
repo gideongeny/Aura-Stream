@@ -1,58 +1,66 @@
-export type Video = {
+export interface Video {
   id: string;
   title: string;
+  thumbnail: string;
   channel: string;
+  channelAvatar?: string;
   views: string;
   timestamp: string;
-  thumbnail: string;
   lengthSeconds: number;
-};
+}
+
+export interface PaginatedResponse {
+  videos: Video[];
+  continuation: string | null;
+}
+
+const API_BASE = import.meta.env.PROD 
+  ? 'https://aura-stream-six.vercel.app/api'
+  : 'http://localhost:5000/api';
 
 const mapVideo = (v: any): Video => ({
   id: v.videoId,
-  title: v.title || 'Unknown Title',
-  channel: v.author || 'Unknown Channel',
-  views: String(v.viewCount || ''),
-  timestamp: v.publishedText || '',
-  thumbnail: v.thumbnail ||
-    v.videoThumbnails?.[0]?.url ||
-    `https://img.youtube.com/vi/${v.videoId}/hqdefault.jpg`,
-  lengthSeconds: v.lengthSeconds || 0,
+  title: v.title,
+  thumbnail: v.thumbnail,
+  channel: v.author,
+  channelAvatar: v.channelThumbnail,
+  views: v.viewCount,
+  timestamp: v.publishedText,
+  lengthSeconds: v.lengthSeconds || 0
 });
 
-export const fetchTrending = async (): Promise<Video[]> => {
-  try {
-    const res = await fetch('/api/popular');
-    if (!res.ok) throw new Error('Failed to fetch trending');
-    const data = await res.json();
-    return Array.isArray(data) ? data.filter(v => v.videoId).map(mapVideo) : [];
-  } catch (error) {
-    console.error('fetchTrending:', error);
-    return [];
-  }
+export const fetchTrending = async (continuation?: string): Promise<PaginatedResponse> => {
+  const url = continuation ? `${API_BASE}/popular?continuation=${encodeURIComponent(continuation)}` : `${API_BASE}/popular`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (Array.isArray(data)) return { videos: data.map(mapVideo), continuation: null };
+  return { videos: (data.videos || []).map(mapVideo), continuation: data.continuation };
 };
 
-export const fetchCategory = async (category: string): Promise<Video[]> => {
-  try {
-    const res = await fetch(`/api/category?name=${encodeURIComponent(category)}`);
-    if (!res.ok) throw new Error('Failed to fetch category');
-    const data = await res.json();
-    return Array.isArray(data) ? data.filter(v => v.videoId).map(mapVideo) : [];
-  } catch (error) {
-    console.error('fetchCategory:', error);
-    return [];
-  }
+export const fetchCategory = async (category: string, continuation?: string): Promise<PaginatedResponse> => {
+  const url = continuation ? `${API_BASE}/category?name=${category}&continuation=${encodeURIComponent(continuation)}` : `${API_BASE}/category?name=${category}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (Array.isArray(data)) return { videos: data.map(mapVideo), continuation: null };
+  return { videos: (data.videos || []).map(mapVideo), continuation: data.continuation };
 };
 
-export const fetchSearch = async (query: string): Promise<Video[]> => {
+export const fetchSearch = async (query: string, continuation?: string): Promise<PaginatedResponse> => {
+  if (!query && !continuation) return { videos: [], continuation: null };
+  const url = continuation ? `${API_BASE}/search?q=${encodeURIComponent(query)}&continuation=${encodeURIComponent(continuation)}` : `${API_BASE}/search?q=${encodeURIComponent(query)}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (Array.isArray(data)) return { videos: data.map(mapVideo), continuation: null };
+  return { videos: (data.videos || []).map(mapVideo), continuation: data.continuation };
+};
+
+export const fetchSuggestions = async (query: string): Promise<string[]> => {
   if (!query) return [];
   try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-    if (!res.ok) throw new Error('Failed to search');
-    const data = await res.json();
-    return Array.isArray(data) ? data.filter(v => v.videoId).map(mapVideo) : [];
-  } catch (error) {
-    console.error('fetchSearch:', error);
+    const res = await fetch(`${API_BASE}/autocomplete?q=${encodeURIComponent(query)}`);
+    return await res.json();
+  } catch (e) {
+    console.error('autocomplete:', e);
     return [];
   }
 };
