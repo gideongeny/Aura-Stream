@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+.pm2
+
+# Ignore user's other downloads
+AdultColony-API-main/
+pornhub-api-master/
+STREAMLUX/
+backend/

@@ -1,0 +1,13 @@
+{
+  "name": "stream-lux-clone",
+  "version": "1.0.0",
+  "description": "Premium Streaming Platform",
+  "scripts": {
+    "start": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd backend && node index.js",
+    "client": "cd frontend && npm run dev"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
