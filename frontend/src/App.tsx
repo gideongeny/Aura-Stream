@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
-import { Home, TrendingUp, BookMarked, History as HistoryIcon, Search, Play, Music, Gamepad2, Newspaper, Trophy, Menu } from 'lucide-react';
+import { Home, TrendingUp, BookMarked, History as HistoryIcon, Search, Play, Music, Gamepad2, Newspaper, Trophy, Menu, Youtube, ListVideo, UserPlus, UserCheck, Download } from 'lucide-react';
 import './index.css';
 import { fetchTrending, fetchSearch, fetchCategory, fetchSuggestions } from './api';
 import type { Video, PaginatedResponse } from './api';
@@ -139,6 +139,7 @@ const Sidebar = ({ isOpen, closeSidebar }: { isOpen: boolean, closeSidebar: () =
         <NavItem to="/category/sports" icon={<Trophy size={20} />} label="Sports" />
 
         <hr style={{ borderColor: 'var(--border-color)', margin: '16px 0' }} />
+        <NavItem to="/subscriptions" icon={<Youtube size={20} />} label="Subscriptions" />
         <NavItem to="/library" icon={<BookMarked size={20} />} label="Library" />
         <NavItem to="/history" icon={<HistoryIcon size={20} />} label="History" />
       </aside>
@@ -171,21 +172,51 @@ const VideoCard = ({ video }: { video: Video }) => {
           {formatLength(video.lengthSeconds)}
         </div>
       </div>
-      <div style={{ display: 'flex', gap: '12px' }}>
-        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg-tertiary)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', gap: '12px' }} onClick={(e) => { e.stopPropagation(); navigate(`/channel/${encodeURIComponent(video.channel)}`); }}>
+        <div className="hover-lift" style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg-tertiary)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
           {video.channelAvatar ? (
             <img src={video.channelAvatar} alt={video.channel} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
             <Play size={16} color="var(--text-secondary)" />
           )}
         </div>
-        <div>
+        <div className="hover-lift">
           <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{video.title}</h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>{video.channel}</p>
           <p style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{video.views} views • {video.timestamp}</p>
         </div>
       </div>
     </div>
+  );
+};
+
+type Subscription = { name: string, avatar: string };
+
+const SubscribeButton = ({ channelName, channelAvatar }: { channelName: string, channelAvatar: string }) => {
+  const [subscriptions, setSubscriptions] = useLocalStorage<Subscription[]>('aurastream_subscriptions', []);
+  const isSubscribed = subscriptions.some(s => s.name === channelName);
+
+  const toggleSubscription = () => {
+    if (isSubscribed) {
+      setSubscriptions(subscriptions.filter(s => s.name !== channelName));
+    } else {
+      setSubscriptions([{ name: channelName, avatar: channelAvatar }, ...subscriptions]);
+    }
+  };
+
+  return (
+    <button 
+      className="btn hover-lift" 
+      onClick={toggleSubscription}
+      style={{ 
+        display: 'flex', gap: '8px', alignItems: 'center', borderRadius: '24px', 
+        background: isSubscribed ? 'var(--bg-tertiary)' : 'var(--text-primary)', 
+        color: isSubscribed ? 'var(--text-primary)' : 'var(--bg-primary)',
+        fontWeight: 600 
+      }}
+    >
+      {isSubscribed ? <><UserCheck size={18} /> Subscribed</> : <><UserPlus size={18} /> Subscribe</>}
+    </button>
   );
 };
 
@@ -286,6 +317,79 @@ const CategoryPage = () => {
   return <FeedPage fetchFunction={fetchFunc} title={`${category?.charAt(0).toUpperCase()}${category?.slice(1)} Content`} />;
 };
 
+const ChannelPage = () => {
+  const { channelName } = useParams();
+  const fetchFunc = useCallback((c?: string) => fetchSearch(channelName || '', c), [channelName]);
+  return (
+    <div>
+      <div className="glass-panel" style={{ padding: '32px 24px', display: 'flex', alignItems: 'center', gap: '24px', background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border-color)', borderRadius: 0 }}>
+        <div style={{ width: '100px', height: '100px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-secondary), var(--accent-primary))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Play size={40} fill="white" />
+        </div>
+        <div style={{ flex: 1 }}>
+          <h1 style={{ fontSize: '32px', fontWeight: 800 }}>{channelName}</h1>
+          <p style={{ color: 'var(--text-secondary)', marginTop: '8px' }}>Explore premium videos from {channelName}</p>
+        </div>
+        <SubscribeButton channelName={channelName || ''} channelAvatar="" />
+      </div>
+      <FeedPage fetchFunction={fetchFunc} title="Latest Videos" />
+    </div>
+  );
+};
+
+const SubscriptionsPage = () => {
+  const [subscriptions] = useLocalStorage<Subscription[]>('aurastream_subscriptions', []);
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (subscriptions.length === 0) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const topSubs = subscriptions.slice(0, 10);
+    Promise.all(topSubs.map(sub => fetchSearch(sub.name))).then(results => {
+      const mixed: Video[] = [];
+      const maxLength = Math.max(...results.map(r => r.videos.length));
+      for(let i = 0; i < maxLength; i++) {
+        for(let r of results) {
+          if (r.videos[i]) mixed.push(r.videos[i]);
+        }
+      }
+      setVideos(mixed);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [subscriptions]);
+
+  if (loading) return (
+    <div style={{ padding: '48px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+      <div style={{ width: '48px', height: '48px', border: '3px solid var(--bg-tertiary)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+      <p style={{ color: 'var(--text-secondary)' }}>Loading your subscriptions feed...</p>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: '24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+        <ListVideo size={28} color="var(--accent-primary)" />
+        <h2 style={{ fontSize: '24px', fontWeight: 700 }}>Your Subscriptions</h2>
+      </div>
+      {subscriptions.length === 0 ? (
+        <div style={{ padding: '48px', textAlign: 'center', background: 'var(--bg-tertiary)', borderRadius: '16px' }}>
+          <Youtube size={48} color="var(--text-muted)" style={{ margin: '0 auto 16px' }} />
+          <h3 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>No subscriptions yet</h3>
+          <p style={{ color: 'var(--text-secondary)' }}>Subscribe to your favorite channels to see their latest videos here.</p>
+        </div>
+      ) : (
+        <div className="video-grid">
+          {videos.map((v, i) => <VideoCard key={`${v.id}-${i}`} video={v} />)}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const StoragePage = ({ storageKey, title, emptyMessage }: { storageKey: string, title: string, emptyMessage: string }) => {
   const [videos, setVideos] = useLocalStorage<Video[]>(storageKey, []);
 
@@ -348,13 +452,16 @@ const WatchPage = () => {
               )}
             </div>
             <div>
-              <h3 style={{ fontSize: '18px', fontWeight: 600 }}>{video?.channel || 'AuraStream Creator'}</h3>
+              <h3 style={{ fontSize: '18px', fontWeight: 600 }}><Link to={`/channel/${encodeURIComponent(video?.channel || '')}`} style={{ color: 'inherit', textDecoration: 'none' }} className="hover-lift">{video?.channel || 'AuraStream Creator'}</Link></h3>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn" style={{ borderRadius: '24px', background: 'var(--bg-tertiary)' }}>👍 Like</button>
-            <button className={`btn ${isSaved ? 'btn-primary' : ''}`} style={{ borderRadius: '24px', background: isSaved ? 'var(--accent-primary)' : 'var(--bg-tertiary)' }} onClick={toggleLibrary}>
-              {isSaved ? '✓ Saved to Library' : '🔖 Save to Library'}
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <SubscribeButton channelName={video?.channel || ''} channelAvatar={video?.channelAvatar || ''} />
+            <button className={`btn hover-lift ${isSaved ? 'btn-primary' : ''}`} style={{ borderRadius: '24px', background: isSaved ? 'var(--accent-primary)' : 'var(--bg-tertiary)' }} onClick={toggleLibrary}>
+              {isSaved ? '✓ Saved' : '🔖 Save'}
+            </button>
+            <button className="btn hover-lift" style={{ borderRadius: '24px', background: 'var(--bg-tertiary)', display: 'flex', gap: '8px', alignItems: 'center' }} onClick={() => window.open(`https://ssyoutube.com/watch?v=${id}`, '_blank')}>
+              <Download size={18} /> Download
             </button>
           </div>
         </div>
@@ -385,6 +492,8 @@ function App() {
               <Route path="/trending" element={<HomePage />} />
               <Route path="/search/:query" element={<SearchPage />} />
               <Route path="/category/:category" element={<CategoryPage />} />
+              <Route path="/channel/:channelName" element={<ChannelPage />} />
+              <Route path="/subscriptions" element={<SubscriptionsPage />} />
               <Route path="/watch/:id" element={<WatchPage />} />
               <Route path="/history" element={<StoragePage storageKey="aurastream_history" title="Watch History" emptyMessage="You haven't watched any videos yet." />} />
               <Route path="/library" element={<StoragePage storageKey="aurastream_library" title="Saved Library" emptyMessage="Your library is empty. Save some videos to watch later!" />} />
