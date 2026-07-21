@@ -133,3 +133,8 @@ body {
   opacity: 0.9;
   box-shadow: var(--shadow-glow);
 }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

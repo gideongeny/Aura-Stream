@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { Home, TrendingUp, BookMarked, History as HistoryIcon, Search, Play, Music, Gamepad2, Newspaper, Trophy } from 'lucide-react';
 import './index.css';
-import { fetchTrending, fetchSearch } from './api';
+import { fetchTrending, fetchSearch, fetchCategory } from './api';
 import type { Video } from './api';
 import { useLocalStorage } from './hooks/useLocalStorage';
 
@@ -138,10 +138,21 @@ const FeedPage = ({ fetchFunction, title }: { fetchFunction: () => Promise<Video
     fetchFunction().then(data => {
       setVideos(data);
       setLoading(false);
-    });
-  }, [fetchFunction]);
+    }).catch(() => setLoading(false));
+  }, []);
 
-  if (loading) return <div style={{ padding: '24px', fontSize: '18px', color: 'var(--accent-primary)' }}>Loading {title}...</div>;
+  if (loading) return (
+    <div style={{ padding: '48px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+      <div style={{ width: '48px', height: '48px', border: '3px solid var(--bg-tertiary)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+      <p style={{ color: 'var(--text-secondary)' }}>Loading {title}...</p>
+    </div>
+  );
+
+  if (videos.length === 0) return (
+    <div style={{ padding: '48px', textAlign: 'center' }}>
+      <p style={{ color: 'var(--text-secondary)', fontSize: '18px' }}>No videos found. Check your connection or try again.</p>
+    </div>
+  );
 
   return (
     <div style={{ padding: '24px' }}>
@@ -163,7 +174,7 @@ const SearchPage = () => {
 
 const CategoryPage = () => {
   const { category } = useParams();
-  const fetchFunc = () => fetchSearch(category || '');
+  const fetchFunc = () => fetchCategory(category || 'music');
   return <FeedPage fetchFunction={fetchFunc} title={`${category?.charAt(0).toUpperCase()}${category?.slice(1)} Content`} />;
 };
 

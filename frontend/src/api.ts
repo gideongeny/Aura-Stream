@@ -1,5 +1,3 @@
-const INVIDIOUS_INSTANCE = 'https://vid.puffyan.us';
-
 export type Video = {
   id: string;
   title: string;
@@ -10,44 +8,51 @@ export type Video = {
   lengthSeconds: number;
 };
 
-// Helper to format views
-const formatViews = (views: number) => {
-  if (views >= 1000000) return (views / 1000000).toFixed(1) + 'M';
-  if (views >= 1000) return (views / 1000).toFixed(1) + 'K';
-  return views.toString();
-};
-
-// Map Invidious response to our Video format
 const mapVideo = (v: any): Video => ({
   id: v.videoId,
-  title: v.title,
-  channel: v.author,
-  views: formatViews(v.viewCount || 0),
-  timestamp: v.publishedText || 'Unknown',
-  thumbnail: v.videoThumbnails?.find((t: any) => t.quality === 'high')?.url || `https://img.youtube.com/vi/${v.videoId}/hqdefault.jpg`,
+  title: v.title || 'Unknown Title',
+  channel: v.author || 'Unknown Channel',
+  views: String(v.viewCount || ''),
+  timestamp: v.publishedText || '',
+  thumbnail: v.thumbnail ||
+    v.videoThumbnails?.[0]?.url ||
+    `https://img.youtube.com/vi/${v.videoId}/hqdefault.jpg`,
   lengthSeconds: v.lengthSeconds || 0,
 });
 
 export const fetchTrending = async (): Promise<Video[]> => {
   try {
-    const res = await fetch(`${INVIDIOUS_INSTANCE}/api/v1/popular`);
+    const res = await fetch('/api/popular');
     if (!res.ok) throw new Error('Failed to fetch trending');
     const data = await res.json();
-    return data.map(mapVideo);
+    return Array.isArray(data) ? data.filter(v => v.videoId).map(mapVideo) : [];
   } catch (error) {
-    console.error(error);
+    console.error('fetchTrending:', error);
+    return [];
+  }
+};
+
+export const fetchCategory = async (category: string): Promise<Video[]> => {
+  try {
+    const res = await fetch(`/api/category?name=${encodeURIComponent(category)}`);
+    if (!res.ok) throw new Error('Failed to fetch category');
+    const data = await res.json();
+    return Array.isArray(data) ? data.filter(v => v.videoId).map(mapVideo) : [];
+  } catch (error) {
+    console.error('fetchCategory:', error);
     return [];
   }
 };
 
 export const fetchSearch = async (query: string): Promise<Video[]> => {
+  if (!query) return [];
   try {
-    const res = await fetch(`${INVIDIOUS_INSTANCE}/api/v1/search?q=${encodeURIComponent(query)}&type=video`);
+    const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
     if (!res.ok) throw new Error('Failed to search');
     const data = await res.json();
-    return data.map(mapVideo);
+    return Array.isArray(data) ? data.filter(v => v.videoId).map(mapVideo) : [];
   } catch (error) {
-    console.error(error);
+    console.error('fetchSearch:', error);
     return [];
   }
 };
