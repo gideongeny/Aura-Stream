@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
-import { Home, TrendingUp, BookMarked, History as HistoryIcon, Search, Play, Music, Gamepad2, Newspaper, Trophy, Menu, Youtube, ListVideo, UserPlus, UserCheck, Download } from 'lucide-react';
+import { Home, TrendingUp, BookMarked, History as HistoryIcon, Search, Play, Music, Gamepad2, Newspaper, Trophy, Menu, Tv, ListVideo, UserPlus, UserCheck, Download } from 'lucide-react';
 import './index.css';
 import { fetchTrending, fetchSearch, fetchCategory, fetchSuggestions } from './api';
 import type { Video, PaginatedResponse } from './api';
@@ -139,7 +139,7 @@ const Sidebar = ({ isOpen, closeSidebar }: { isOpen: boolean, closeSidebar: () =
         <NavItem to="/category/sports" icon={<Trophy size={20} />} label="Sports" />
 
         <hr style={{ borderColor: 'var(--border-color)', margin: '16px 0' }} />
-        <NavItem to="/subscriptions" icon={<Youtube size={20} />} label="Subscriptions" />
+        <NavItem to="/subscriptions" icon={<Tv size={20} />} label="Subscriptions" />
         <NavItem to="/library" icon={<BookMarked size={20} />} label="Library" />
         <NavItem to="/history" icon={<HistoryIcon size={20} />} label="History" />
       </aside>
@@ -377,7 +377,7 @@ const SubscriptionsPage = () => {
       </div>
       {subscriptions.length === 0 ? (
         <div style={{ padding: '48px', textAlign: 'center', background: 'var(--bg-tertiary)', borderRadius: '16px' }}>
-          <Youtube size={48} color="var(--text-muted)" style={{ margin: '0 auto 16px' }} />
+          <Tv size={48} color="var(--text-muted)" style={{ margin: '0 auto 16px' }} />
           <h3 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>No subscriptions yet</h3>
           <p style={{ color: 'var(--text-secondary)' }}>Subscribe to your favorite channels to see their latest videos here.</p>
         </div>
