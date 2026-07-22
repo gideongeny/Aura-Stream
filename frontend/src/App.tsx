@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
-import { Home, TrendingUp, BookMarked, History as HistoryIcon, Search, Play, Music, Gamepad2, Newspaper, Trophy, Menu, Tv, ListVideo, UserPlus, UserCheck, Download } from 'lucide-react';
+import { Home, TrendingUp, BookMarked, History as HistoryIcon, Search, Play, Music, Gamepad2, Newspaper, Trophy, Menu, Tv, ListVideo, UserPlus, UserCheck, Download, ThumbsUp, Smartphone, Podcast, Radio, BookOpen, Film } from 'lucide-react';
 import './index.css';
 import { fetchTrending, fetchSearch, fetchCategory, fetchSuggestions } from './api';
 import type { Video, PaginatedResponse } from './api';
@@ -106,21 +106,26 @@ const Navbar = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
 const Sidebar = ({ isOpen, closeSidebar }: { isOpen: boolean, closeSidebar: () => void }) => {
   const location = useLocation();
   const isActive = (path: string) => location.pathname === path;
+  const [subscriptions] = useLocalStorage<Subscription[]>('aurastream_subscriptions', []);
 
   // Close sidebar on mobile when navigating
   useEffect(() => {
     closeSidebar();
   }, [location.pathname]);
 
-  const NavItem = ({ to, icon, label }: { to: string, icon: React.ReactNode, label: string }) => (
+  const NavItem = ({ to, icon, label, avatar }: { to: string, icon?: React.ReactNode, label: string, avatar?: string }) => (
     <Link to={to} className={`sidebar-item hover-lift ${isActive(to) ? 'active' : ''}`} style={{ 
       display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px', textDecoration: 'none',
       color: isActive(to) ? 'var(--accent-primary)' : 'var(--text-secondary)',
       background: isActive(to) ? 'var(--bg-tertiary)' : 'transparent',
       fontWeight: isActive(to) ? 600 : 400
     }}>
-      {icon}
-      {label}
+      {avatar ? (
+        <div style={{ width: '24px', height: '24px', borderRadius: '50%', overflow: 'hidden', background: 'var(--bg-tertiary)', flexShrink: 0 }}>
+          {avatar !== '' ? <img src={avatar} alt={label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Play size={12} style={{ margin: '6px' }} />}
+        </div>
+      ) : icon}
+      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
     </Link>
   );
 
@@ -129,6 +134,7 @@ const Sidebar = ({ isOpen, closeSidebar }: { isOpen: boolean, closeSidebar: () =
       <div className={`sidebar-overlay ${isOpen ? 'open' : ''}`} onClick={closeSidebar} />
       <aside className={`sidebar ${isOpen ? 'open' : ''}`} style={{ width: '240px', height: '100%', borderRight: '1px solid var(--border-color)', padding: '24px', display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto' }}>
         <NavItem to="/" icon={<Home size={20} />} label="Home" />
+        <NavItem to="/shorts" icon={<Smartphone size={20} />} label="Shorts" />
         <NavItem to="/trending" icon={<TrendingUp size={20} />} label="Trending" />
         
         <hr style={{ borderColor: 'var(--border-color)', margin: '16px 0' }} />
@@ -137,11 +143,23 @@ const Sidebar = ({ isOpen, closeSidebar }: { isOpen: boolean, closeSidebar: () =
         <NavItem to="/category/gaming" icon={<Gamepad2 size={20} />} label="Gaming" />
         <NavItem to="/category/news" icon={<Newspaper size={20} />} label="News" />
         <NavItem to="/category/sports" icon={<Trophy size={20} />} label="Sports" />
+        <NavItem to="/category/podcasts" icon={<Podcast size={20} />} label="Podcasts" />
+        <NavItem to="/category/live" icon={<Radio size={20} />} label="Live" />
+        <NavItem to="/category/education" icon={<BookOpen size={20} />} label="Education" />
+        <NavItem to="/category/movies" icon={<Film size={20} />} label="Movies" />
 
         <hr style={{ borderColor: 'var(--border-color)', margin: '16px 0' }} />
-        <NavItem to="/subscriptions" icon={<Tv size={20} />} label="Subscriptions" />
-        <NavItem to="/library" icon={<BookMarked size={20} />} label="Library" />
+        <div style={{ color: 'var(--text-muted)', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', marginBottom: '8px', paddingLeft: '12px' }}>You</div>
         <NavItem to="/history" icon={<HistoryIcon size={20} />} label="History" />
+        <NavItem to="/library" icon={<BookMarked size={20} />} label="Library" />
+        <NavItem to="/liked" icon={<ThumbsUp size={20} />} label="Liked videos" />
+
+        <hr style={{ borderColor: 'var(--border-color)', margin: '16px 0' }} />
+        <div style={{ color: 'var(--text-muted)', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', marginBottom: '8px', paddingLeft: '12px' }}>Subscriptions</div>
+        <NavItem to="/subscriptions" icon={<Tv size={20} />} label="All Subscriptions" />
+        {subscriptions.map(sub => (
+          <NavItem key={sub.name} to={`/channel/${encodeURIComponent(sub.name)}`} label={sub.name} avatar={sub.avatar} />
+        ))}
       </aside>
     </>
   );
@@ -182,7 +200,9 @@ const VideoCard = ({ video }: { video: Video }) => {
         </div>
         <div className="hover-lift">
           <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{video.title}</h3>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>{video.channel}</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+            <Link to={`/channel/${encodeURIComponent(video.channel)}`} state={{ channelAvatar: video.channelAvatar }} onClick={e => e.stopPropagation()} style={{ color: 'inherit', textDecoration: 'none' }} className="hover-lift">{video.channel}</Link>
+          </p>
           <p style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{video.views} views • {video.timestamp}</p>
         </div>
       </div>
@@ -317,20 +337,31 @@ const CategoryPage = () => {
   return <FeedPage fetchFunction={fetchFunc} title={`${category?.charAt(0).toUpperCase()}${category?.slice(1)} Content`} />;
 };
 
+const ShortsPage = () => {
+  const fetchFunc = useCallback((c?: string) => fetchSearch('#shorts', c), []);
+  return <FeedPage fetchFunction={fetchFunc} title="Shorts" />;
+};
+
 const ChannelPage = () => {
   const { channelName } = useParams();
+  const location = useLocation();
+  const channelAvatar = location.state?.channelAvatar;
   const fetchFunc = useCallback((c?: string) => fetchSearch(channelName || '', c), [channelName]);
   return (
     <div>
       <div className="glass-panel" style={{ padding: '32px 24px', display: 'flex', alignItems: 'center', gap: '24px', background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border-color)', borderRadius: 0 }}>
-        <div style={{ width: '100px', height: '100px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-secondary), var(--accent-primary))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Play size={40} fill="white" />
+        <div style={{ width: '100px', height: '100px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-secondary), var(--accent-primary))', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+          {channelAvatar ? (
+            <img src={channelAvatar} alt={channelName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <Play size={40} fill="white" />
+          )}
         </div>
-        <div style={{ flex: 1 }}>
-          <h1 style={{ fontSize: '32px', fontWeight: 800 }}>{channelName}</h1>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1 style={{ fontSize: '32px', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{channelName}</h1>
           <p style={{ color: 'var(--text-secondary)', marginTop: '8px' }}>Explore premium videos from {channelName}</p>
         </div>
-        <SubscribeButton channelName={channelName || ''} channelAvatar="" />
+        <SubscribeButton channelName={channelName || ''} channelAvatar={channelAvatar || ''} />
       </div>
       <FeedPage fetchFunction={fetchFunc} title="Latest Videos" />
     </div>
@@ -415,14 +446,24 @@ const WatchPage = () => {
   const location = useLocation();
   const video = location.state?.video as Video;
   const [library, setLibrary] = useLocalStorage<Video[]>('aurastream_library', []);
+  const [likedVideos, setLikedVideos] = useLocalStorage<Video[]>('aurastream_liked_videos', []);
   
   const isSaved = library.some(v => v.id === id);
+  const isLiked = likedVideos.some(v => v.id === id);
 
   const toggleLibrary = () => {
     if (isSaved) {
       setLibrary(library.filter(v => v.id !== id));
     } else if (video) {
       setLibrary([video, ...library]);
+    }
+  };
+
+  const toggleLike = () => {
+    if (isLiked) {
+      setLikedVideos(likedVideos.filter(v => v.id !== id));
+    } else if (video) {
+      setLikedVideos([video, ...likedVideos]);
     }
   };
 
@@ -442,7 +483,7 @@ const WatchPage = () => {
           ></iframe>
         </div>
         <h1 style={{ fontSize: '24px', fontWeight: 700, margin: '20px 0 10px 0' }}>{video?.title || 'Premium Video Stream'}</h1>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', borderBottom: '1px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--bg-tertiary)', overflow: 'hidden' }}>
               {video?.channelAvatar ? (
@@ -452,10 +493,13 @@ const WatchPage = () => {
               )}
             </div>
             <div>
-              <h3 style={{ fontSize: '18px', fontWeight: 600 }}><Link to={`/channel/${encodeURIComponent(video?.channel || '')}`} style={{ color: 'inherit', textDecoration: 'none' }} className="hover-lift">{video?.channel || 'AuraStream Creator'}</Link></h3>
+              <h3 style={{ fontSize: '18px', fontWeight: 600 }}><Link to={`/channel/${encodeURIComponent(video?.channel || '')}`} state={{ channelAvatar: video?.channelAvatar }} style={{ color: 'inherit', textDecoration: 'none' }} className="hover-lift">{video?.channel || 'AuraStream Creator'}</Link></h3>
             </div>
           </div>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className={`btn hover-lift ${isLiked ? 'btn-primary' : ''}`} style={{ borderRadius: '24px', background: isLiked ? 'var(--accent-primary)' : 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={toggleLike}>
+              <ThumbsUp size={18} /> {isLiked ? 'Liked' : 'Like'}
+            </button>
             <SubscribeButton channelName={video?.channel || ''} channelAvatar={video?.channelAvatar || ''} />
             <button className={`btn hover-lift ${isSaved ? 'btn-primary' : ''}`} style={{ borderRadius: '24px', background: isSaved ? 'var(--accent-primary)' : 'var(--bg-tertiary)' }} onClick={toggleLibrary}>
               {isSaved ? '✓ Saved' : '🔖 Save'}
@@ -489,6 +533,7 @@ function App() {
           <main className="content-area" id="scrollable-content" style={{ flex: 1, overflowY: 'auto' }}>
             <Routes>
               <Route path="/" element={<HomePage />} />
+              <Route path="/shorts" element={<ShortsPage />} />
               <Route path="/trending" element={<HomePage />} />
               <Route path="/search/:query" element={<SearchPage />} />
               <Route path="/category/:category" element={<CategoryPage />} />
@@ -497,6 +542,7 @@ function App() {
               <Route path="/watch/:id" element={<WatchPage />} />
               <Route path="/history" element={<StoragePage storageKey="aurastream_history" title="Watch History" emptyMessage="You haven't watched any videos yet." />} />
               <Route path="/library" element={<StoragePage storageKey="aurastream_library" title="Saved Library" emptyMessage="Your library is empty. Save some videos to watch later!" />} />
+              <Route path="/liked" element={<StoragePage storageKey="aurastream_liked_videos" title="Liked Videos" emptyMessage="You haven't liked any videos yet." />} />
             </Routes>
           </main>
         </div>
