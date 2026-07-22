@@ -15,7 +15,11 @@ export const fetchYouTubeSubscriptions = async (accessToken: string) => {
   for (let i = 0; i < 2; i++) {
     const url = `${YOUTUBE_API_BASE}/subscriptions?part=snippet&mine=true&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-    if (!res.ok) break;
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("YouTube API failed:", errText);
+      throw new Error(errText);
+    }
     const data = await res.json();
     
     const pageSubs = data.items.map((item: any) => ({
