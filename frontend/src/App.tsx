@@ -434,7 +434,7 @@ const ChannelPage = () => {
 
 const SubscriptionsPage = () => {
   const [localSubscriptions] = useLocalStorage<Subscription[]>('aurastream_subscriptions', []);
-  const { token, profile } = React.useContext(AuthContext);
+  const { token } = React.useContext(AuthContext);
   const [youtubeSubs, setYoutubeSubs] = useState<Subscription[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
