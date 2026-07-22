@@ -474,7 +474,7 @@ const HomePage = () => {
   const { token } = React.useContext(AuthContext);
   const [youtubeSubs, setYoutubeSubs] = useState<Subscription[]>([]);
   const [subsLoaded, setSubsLoaded] = useState(false);
-  const [feedSections, setFeedSections] = useState<{title: string, videos: Video[], isNew?: boolean}[]>([]);
+  const [feedSections, setFeedSections] = useState<{title: string, videos: Video[], isNew?: boolean, avatar?: string}[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -496,7 +496,7 @@ const HomePage = () => {
   const buildFeed = useCallback(async (isAutoRefresh = false) => {
     if (!isAutoRefresh) setLoading(true);
     try {
-      const sections: {title: string, videos: Video[], isNew?: boolean}[] = [];
+      const sections: {title: string, videos: Video[], isNew?: boolean, avatar?: string}[] = [];
 
       // --- Subscription rows (up to 6 channels, each gets its own row) ---
       const subsToShow = subscriptions.slice(0, 6);
@@ -510,13 +510,13 @@ const HomePage = () => {
           subResults.forEach(res => { if (res.videos[i]) mixedSubs.push(res.videos[i]); });
         }
         if (mixedSubs.length > 0) {
-          sections.push({ title: '🔔 Latest from your Subscriptions', videos: mixedSubs, isNew: isAutoRefresh });
+          sections.push({ title: '✨ Latest from your Subscriptions', videos: mixedSubs, isNew: isAutoRefresh });
         }
 
         // Per-channel rows for subs with enough videos
         subResults.forEach((res, idx) => {
           if (res.videos.length >= 4 && subsToShow[idx]) {
-            sections.push({ title: `📺 ${subsToShow[idx].name}`, videos: res.videos.slice(0, 8) });
+            sections.push({ title: subsToShow[idx].name, avatar: subsToShow[idx].avatar, videos: res.videos.slice(0, 8) });
           }
         });
       }
@@ -580,7 +580,8 @@ const HomePage = () => {
       ) : (
         feedSections.map((sec, idx) => (
           <div key={idx} style={{ marginBottom: '48px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {sec.avatar && <img src={sec.avatar} alt={sec.title} style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-color)' }} />}
               {sec.title}
               {sec.isNew && <span style={{ fontSize: '11px', background: 'var(--accent-primary)', color: 'white', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>NEW</span>}
             </h2>
