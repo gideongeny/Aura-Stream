@@ -8,6 +8,7 @@ import type { Video, PaginatedResponse } from './api';
 import { fetchGoogleProfile, fetchYouTubeSubscriptions, fetchLikedVideos } from './youtubeApi';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import React from 'react';
+import YouTube, { YouTubeProps } from 'react-youtube';
 
 // --- AUTH CONTEXT ---
 
@@ -658,23 +659,72 @@ const ChannelPage = () => {
   const location = useLocation();
   const channelAvatar = location.state?.channelAvatar;
   const fetchFunc = useCallback((c?: string) => fetchSearch(channelName || '', c), [channelName]);
+  const [activeTab, setActiveTab] = useState('Videos');
+
+  // A seeded hash function to generate a consistent gradient banner based on the channel name
+  const getBannerGradient = (name: string) => {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    const h1 = Math.abs(hash % 360);
+    const h2 = Math.abs((hash * 2) % 360);
+    return `linear-gradient(135deg, hsl(${h1}, 80%, 30%), hsl(${h2}, 80%, 40%))`;
+  };
+
   return (
-    <div>
-      <div className="glass-panel" style={{ padding: '32px 24px', display: 'flex', alignItems: 'center', gap: '24px', background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border-color)', borderRadius: 0 }}>
-        <div style={{ width: '100px', height: '100px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-secondary), var(--accent-primary))', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-          {channelAvatar ? (
-            <img src={channelAvatar} alt={channelName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          ) : (
-            <Play size={40} fill="white" />
-          )}
+    <div style={{ padding: '0 0 24px 0' }}>
+      {/* Abstract Banner */}
+      <div style={{ height: '200px', width: '100%', background: getBannerGradient(channelName || 'default') }} />
+      
+      {/* Profile Section */}
+      <div style={{ padding: '0 48px', marginTop: '-50px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '24px' }}>
+            <div style={{ width: '128px', height: '128px', borderRadius: '50%', background: 'var(--bg-tertiary)', border: '4px solid var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, boxShadow: '0 8px 16px rgba(0,0,0,0.5)' }}>
+              {channelAvatar ? (
+                <img src={channelAvatar} alt={channelName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <Play size={48} fill="var(--text-secondary)" />
+              )}
+            </div>
+            <div style={{ paddingBottom: '8px' }}>
+              <h1 style={{ fontSize: '36px', fontWeight: 800 }}>{channelName}</h1>
+              <p style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>Premium Creator • Explore their latest content</p>
+            </div>
+          </div>
+          <div style={{ paddingBottom: '16px' }}>
+            <SubscribeButton channelName={channelName || ''} channelAvatar={channelAvatar || ''} />
+          </div>
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h1 style={{ fontSize: '32px', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{channelName}</h1>
-          <p style={{ color: 'var(--text-secondary)', marginTop: '8px' }}>Explore premium videos from {channelName}</p>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: '32px', borderBottom: '1px solid var(--border-color)', marginTop: '8px', overflowX: 'auto' }}>
+          {['Home', 'Videos', 'Shorts', 'Playlists', 'Community'].map(tab => (
+            <button 
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{ 
+                background: 'none', border: 'none', padding: '12px 0', fontSize: '16px', fontWeight: 600, cursor: 'pointer',
+                color: activeTab === tab ? 'var(--text-primary)' : 'var(--text-secondary)',
+                borderBottom: activeTab === tab ? '3px solid var(--text-primary)' : '3px solid transparent',
+                transition: 'all 0.2s', whiteSpace: 'nowrap'
+              }}
+            >
+              {tab}
+            </button>
+          ))}
         </div>
-        <SubscribeButton channelName={channelName || ''} channelAvatar={channelAvatar || ''} />
       </div>
-      <FeedPage fetchFunction={fetchFunc} title="Latest Videos" />
+
+      {/* Content */}
+      <div style={{ padding: '24px 48px' }}>
+        {activeTab === 'Videos' || activeTab === 'Home' ? (
+          <FeedPage fetchFunction={fetchFunc} title="" />
+        ) : (
+          <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--text-secondary)' }}>
+            <p>This section is currently empty or under development.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -796,6 +846,7 @@ const WatchPage = () => {
   const { id } = useParams();
   const location = useLocation();
   const video = location.state?.video as Video;
+  const navigate = useNavigate();
   const [library, setLibrary] = useLocalStorage<Video[]>('aurastream_library', []);
   const [likedVideos, setLikedVideos] = useLocalStorage<Video[]>('aurastream_liked_videos', []);
   
@@ -803,6 +854,9 @@ const WatchPage = () => {
   const [recommended, setRecommended] = useState<Video[]>([]);
   const [loadingRecommended, setLoadingRecommended] = useState(true);
   const [descExpanded, setDescExpanded] = useState(false);
+  const [showUpNext, setShowUpNext] = useState(false);
+  const [upNextTimer, setUpNextTimer] = useState(5);
+  const playerRef = useRef<any>(null);
 
   useEffect(() => {
     if (video?.channel) {
@@ -814,6 +868,41 @@ const WatchPage = () => {
       }).catch(() => setLoadingRecommended(false));
     }
   }, [video, id]);
+
+  // Reset states when ID changes
+  useEffect(() => {
+    setShowUpNext(false);
+    setUpNextTimer(5);
+  }, [id]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (playerRef.current && playerRef.current.getCurrentTime && playerRef.current.getDuration) {
+        const currentTime = playerRef.current.getCurrentTime();
+        const duration = playerRef.current.getDuration();
+        const timeLeft = duration - currentTime;
+        
+        if (duration > 0 && timeLeft <= 5 && timeLeft > 0) {
+          if (!showUpNext) setShowUpNext(true);
+          setUpNextTimer(Math.ceil(timeLeft));
+        } else if (showUpNext && timeLeft > 5) {
+          // If user seeks back, hide overlay
+          setShowUpNext(false);
+        }
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [showUpNext]);
+
+  const onPlayerReady: YouTubeProps['onReady'] = (event) => {
+    playerRef.current = event.target;
+  };
+
+  const onPlayerStateChange: YouTubeProps['onStateChange'] = (event) => {
+    if (event.data === 0 && recommended.length > 0 && showUpNext) { // 0 = ended
+      navigate(`/watch/${recommended[0].id}`, { state: { video: recommended[0] } });
+    }
+  };
 
   const isSaved = library.some(v => v.id === id);
   const isLiked = likedVideos.some(v => v.id === id);
@@ -841,14 +930,37 @@ const WatchPage = () => {
       {/* LEFT COLUMN: Player & Details */}
       <div style={{ flex: isTheaterMode ? '1 1 100%' : '3', minWidth: '0' }}>
         <div style={{ position: 'relative', width: '100%', paddingTop: isTheaterMode ? '45%' : '56.25%', borderRadius: '16px', overflow: 'hidden', background: 'black', boxShadow: 'var(--shadow-glow)' }}>
-          <iframe 
-            src={`https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1`}
-            title="YouTube video player" 
-            frameBorder="0" 
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-            allowFullScreen
+          <YouTube 
+            videoId={id}
+            opts={{
+              width: '100%',
+              height: '100%',
+              playerVars: { autoplay: 1, rel: 0, modestbranding: 1 }
+            }}
+            onReady={onPlayerReady}
+            onStateChange={onPlayerStateChange}
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
-          ></iframe>
+          />
+          {showUpNext && recommended.length > 0 && (
+            <div className="glass-panel" style={{ position: 'absolute', bottom: '24px', right: '24px', background: 'rgba(20, 20, 20, 0.95)', padding: '16px', borderRadius: '12px', display: 'flex', gap: '16px', border: '1px solid rgba(255, 255, 255, 0.1)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', zIndex: 10, width: '350px' }}>
+              <div style={{ width: '120px', height: '68px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0, position: 'relative' }}>
+                <img src={recommended[0].thumbnail} alt={recommended[0].title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(0,0,0,0.8)', border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', fontSize: '18px' }}>
+                    {upNextTimer}
+                  </div>
+                </div>
+              </div>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>Up Next</p>
+                <h4 style={{ fontSize: '14px', fontWeight: 600, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', marginBottom: '8px' }}>{recommended[0].title}</h4>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button onClick={() => setShowUpNext(false)} className="hover-lift" style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>Cancel</button>
+                  <button onClick={() => navigate(`/watch/${recommended[0].id}`, { state: { video: recommended[0] } })} className="hover-lift" style={{ background: 'var(--text-primary)', border: 'none', color: 'var(--bg-primary)', padding: '6px 16px', borderRadius: '16px', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}>Play Now</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         <h1 style={{ fontSize: '24px', fontWeight: 700, margin: '20px 0 10px 0' }}>{video?.title || 'Premium Video Stream'}</h1>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
