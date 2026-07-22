@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
-import { Home, TrendingUp, BookMarked, History as HistoryIcon, Search, Play, Music, Gamepad2, Newspaper, Trophy, Menu, Tv, ListVideo, UserPlus, UserCheck, Download, ThumbsUp, Smartphone, Podcast, Radio, BookOpen, Film, LogOut, Maximize, Sparkles, ChevronDown, ChevronUp, Wand2 } from 'lucide-react';
+import { Home, TrendingUp, BookMarked, History as HistoryIcon, Search, Play, Music, Gamepad2, Newspaper, Trophy, Menu, Tv, ListVideo, UserPlus, UserCheck, Download, ThumbsUp, Smartphone, Podcast, Radio, BookOpen, Film, LogOut, Maximize, ChevronDown, ChevronUp } from 'lucide-react';
 import { useGoogleLogin, googleLogout } from '@react-oauth/google';
 import './index.css';
 import { fetchTrending, fetchSearch, fetchSuggestions } from './api';
@@ -8,7 +8,8 @@ import type { Video, PaginatedResponse } from './api';
 import { fetchGoogleProfile, fetchYouTubeSubscriptions, fetchLikedVideos } from './youtubeApi';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import React from 'react';
-import YouTube, { YouTubeProps } from 'react-youtube';
+import YouTube from 'react-youtube';
+import type { YouTubeProps } from 'react-youtube';
 
 // --- AUTH CONTEXT ---
 
