@@ -277,32 +277,55 @@ const VideoCard = ({ video }: { video: Video }) => {
 type Subscription = { name: string, avatar: string };
 
 const SubscribeButton = ({ channelName, channelAvatar }: { channelName: string, channelAvatar: string }) => {
-  const [subscriptions, setSubscriptions] = useLocalStorage<Subscription[]>('aurastream_subscriptions', []);
-  const isSubscribed = subscriptions.some(s => s.name === channelName);
+  const [localSubscriptions, setLocalSubscriptions] = useLocalStorage<Subscription[]>('aurastream_subscriptions', []);
+  const { token } = React.useContext(AuthContext);
+  const [youtubeSubs, setYoutubeSubs] = useState<Subscription[]>([]);
+  const [subsLoaded, setSubsLoaded] = useState(false);
+
+  // Fetch real YouTube subs once when signed in
+  useEffect(() => {
+    if (token && !subsLoaded) {
+      fetchYouTubeSubscriptions(token)
+        .then(subs => { setYoutubeSubs(subs); setSubsLoaded(true); })
+        .catch(() => setSubsLoaded(true));
+    }
+  }, [token, subsLoaded]);
+
+  // Normalise channel names for fuzzy matching
+  const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const normTarget = normalise(channelName);
+
+  const isRealSub = youtubeSubs.some(s => normalise(s.name).includes(normTarget) || normTarget.includes(normalise(s.name)));
+  const isLocalSub = localSubscriptions.some(s => s.name === channelName);
+  const isSubscribed = isRealSub || isLocalSub;
 
   const toggleSubscription = () => {
-    if (isSubscribed) {
-      setSubscriptions(subscriptions.filter(s => s.name !== channelName));
+    // Real YouTube subs are read-only — we toggle in local state only
+    if (isLocalSub) {
+      setLocalSubscriptions(localSubscriptions.filter(s => s.name !== channelName));
     } else {
-      setSubscriptions([{ name: channelName, avatar: channelAvatar }, ...subscriptions]);
+      setLocalSubscriptions([{ name: channelName, avatar: channelAvatar }, ...localSubscriptions]);
     }
   };
 
   return (
-    <button 
-      className="btn hover-lift" 
+    <button
+      className="btn hover-lift"
       onClick={toggleSubscription}
-      style={{ 
-        display: 'flex', gap: '8px', alignItems: 'center', borderRadius: '24px', 
-        background: isSubscribed ? 'var(--bg-tertiary)' : 'var(--text-primary)', 
+      title={isRealSub ? 'Subscribed on YouTube' : ''}
+      style={{
+        display: 'flex', gap: '8px', alignItems: 'center', borderRadius: '24px',
+        background: isSubscribed ? 'var(--bg-tertiary)' : 'var(--text-primary)',
         color: isSubscribed ? 'var(--text-primary)' : 'var(--bg-primary)',
-        fontWeight: 600 
+        fontWeight: 600,
+        border: isRealSub ? '2px solid var(--accent-primary)' : 'none',
       }}
     >
-      {isSubscribed ? <><UserCheck size={18} /> Subscribed</> : <><UserPlus size={18} /> Subscribe</>}
+      {isSubscribed ? <><UserCheck size={18} /> Subscribed{isRealSub ? ' ✓' : ''}</> : <><UserPlus size={18} /> Subscribe</>}
     </button>
   );
 };
+
 
 // --- PAGES ---
 
