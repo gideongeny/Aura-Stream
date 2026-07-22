@@ -234,7 +234,7 @@ const Sidebar = ({ isOpen, closeSidebar }: { isOpen: boolean, closeSidebar: () =
   }, [location.pathname]);
 
   const NavItem = ({ to, icon, label, avatar }: { to: string, icon?: React.ReactNode, label: string, avatar?: string }) => (
-    <Link to={to} className={`sidebar-item hover-lift ${isActive(to) ? 'active' : ''}`} style={{ 
+    <Link to={to} state={{ channelAvatar: avatar }} className={`sidebar-item hover-lift ${isActive(to) ? 'active' : ''}`} style={{ 
       display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px', textDecoration: 'none',
       color: isActive(to) ? 'var(--accent-primary)' : 'var(--text-secondary)',
       background: isActive(to) ? 'var(--bg-tertiary)' : 'transparent',
@@ -673,8 +673,16 @@ const ChannelPage = () => {
 
   return (
     <div style={{ padding: '0 0 24px 0' }}>
-      {/* Abstract Banner */}
-      <div style={{ height: '200px', width: '100%', background: getBannerGradient(channelName || 'default') }} />
+      {/* Dynamic Image Banner */}
+      <div style={{ 
+        height: '200px', 
+        width: '100%', 
+        background: channelAvatar ? `url(${channelAvatar}) center/cover no-repeat` : getBannerGradient(channelName || 'default'),
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        {channelAvatar && <div style={{ position: 'absolute', inset: 0, backdropFilter: 'blur(40px)', background: 'rgba(0,0,0,0.3)' }} />}
+      </div>
       
       {/* Profile Section */}
       <div style={{ padding: '0 48px', marginTop: '-50px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
