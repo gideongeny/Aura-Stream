@@ -1,10 +1,52 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
-import { Home, TrendingUp, BookMarked, History as HistoryIcon, Search, Play, Music, Gamepad2, Newspaper, Trophy, Menu, Tv, ListVideo, UserPlus, UserCheck, Download, ThumbsUp, Smartphone, Podcast, Radio, BookOpen, Film } from 'lucide-react';
+import { Home, TrendingUp, BookMarked, History as HistoryIcon, Search, Play, Music, Gamepad2, Newspaper, Trophy, Menu, Tv, ListVideo, UserPlus, UserCheck, Download, ThumbsUp, Smartphone, Podcast, Radio, BookOpen, Film, LogOut, LogIn } from 'lucide-react';
+import { useGoogleLogin, googleLogout } from '@react-oauth/google';
 import './index.css';
 import { fetchTrending, fetchSearch, fetchCategory, fetchSuggestions } from './api';
 import type { Video, PaginatedResponse } from './api';
+import { fetchGoogleProfile, fetchYouTubeSubscriptions, fetchLikedVideos } from './youtubeApi';
 import { useLocalStorage } from './hooks/useLocalStorage';
+import React from 'react';
+
+// --- AUTH CONTEXT ---
+
+type UserProfile = { name: string, picture: string, email: string };
+type AuthContextType = {
+  token: string | null;
+  profile: UserProfile | null;
+  login: () => void;
+  logout: () => void;
+};
+export const AuthContext = React.createContext<AuthContextType>({
+  token: null, profile: null, login: () => {}, logout: () => {}
+});
+
+const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const [token, setToken] = useLocalStorage<string | null>('aurastream_google_token', null);
+  const [profile, setProfile] = useLocalStorage<UserProfile | null>('aurastream_google_profile', null);
+
+  const login = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setToken(tokenResponse.access_token);
+      try {
+        const prof = await fetchGoogleProfile(tokenResponse.access_token);
+        setProfile(prof);
+      } catch (e) {
+        console.error(e);
+      }
+    },
+    scope: 'https://www.googleapis.com/auth/youtube.readonly',
+  });
+
+  const logout = () => {
+    googleLogout();
+    setToken(null);
+    setProfile(null);
+  };
+
+  return <AuthContext.Provider value={{ token, profile, login, logout }}>{children}</AuthContext.Provider>;
+};
 
 // --- COMPONENTS ---
 
@@ -14,6 +56,7 @@ const Navbar = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const navigate = useNavigate();
   const searchRef = useRef<HTMLFormElement>(null);
+  const { profile, login, logout } = React.useContext(AuthContext);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -96,8 +139,19 @@ const Navbar = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
         )}
       </form>
 
-      <div style={{ display: 'flex', gap: '16px', alignItems: 'center', width: '40px' }}>
-        {/* Placeholder removed as requested */}
+      <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+        {profile ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <img src={profile.picture} alt={profile.name} style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} />
+            <button className="btn hover-lift" onClick={logout} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-tertiary)', borderRadius: '24px' }}>
+              <LogOut size={16} /> Logout
+            </button>
+          </div>
+        ) : (
+          <button className="btn btn-primary hover-lift" onClick={() => login()} style={{ display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '24px' }}>
+            <LogIn size={18} /> Sign In
+          </button>
+        )}
       </div>
     </nav>
   );
@@ -106,7 +160,17 @@ const Navbar = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
 const Sidebar = ({ isOpen, closeSidebar }: { isOpen: boolean, closeSidebar: () => void }) => {
   const location = useLocation();
   const isActive = (path: string) => location.pathname === path;
-  const [subscriptions] = useLocalStorage<Subscription[]>('aurastream_subscriptions', []);
+  const [localSubscriptions] = useLocalStorage<Subscription[]>('aurastream_subscriptions', []);
+  const { token } = React.useContext(AuthContext);
+  const [youtubeSubs, setYoutubeSubs] = useState<Subscription[]>([]);
+
+  useEffect(() => {
+    if (token) {
+      fetchYouTubeSubscriptions(token).then(subs => setYoutubeSubs(subs));
+    }
+  }, [token]);
+
+  const subscriptions = token ? youtubeSubs : localSubscriptions;
 
   // Close sidebar on mobile when navigating
   useEffect(() => {
@@ -369,17 +433,36 @@ const ChannelPage = () => {
 };
 
 const SubscriptionsPage = () => {
-  const [subscriptions] = useLocalStorage<Subscription[]>('aurastream_subscriptions', []);
+  const [localSubscriptions] = useLocalStorage<Subscription[]>('aurastream_subscriptions', []);
+  const { token, profile } = React.useContext(AuthContext);
+  const [youtubeSubs, setYoutubeSubs] = useState<Subscription[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (subscriptions.length === 0) {
+    if (token) {
+      fetchYouTubeSubscriptions(token).then(subs => {
+        setYoutubeSubs(subs);
+      });
+    }
+  }, [token]);
+
+  const subscriptions = token ? youtubeSubs : localSubscriptions;
+
+  useEffect(() => {
+    if (!token && localSubscriptions.length === 0) {
       setLoading(false);
       return;
     }
+    if (token && youtubeSubs.length === 0) return; // Wait for subs to load if logged in
+
     setLoading(true);
     const topSubs = subscriptions.slice(0, 10);
+    if (topSubs.length === 0) {
+      setLoading(false);
+      return;
+    }
+
     Promise.all(topSubs.map(sub => fetchSearch(sub.name))).then(results => {
       const mixed: Video[] = [];
       const maxLength = Math.max(...results.map(r => r.videos.length));
@@ -410,7 +493,9 @@ const SubscriptionsPage = () => {
         <div style={{ padding: '48px', textAlign: 'center', background: 'var(--bg-tertiary)', borderRadius: '16px' }}>
           <Tv size={48} color="var(--text-muted)" style={{ margin: '0 auto 16px' }} />
           <h3 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>No subscriptions yet</h3>
-          <p style={{ color: 'var(--text-secondary)' }}>Subscribe to your favorite channels to see their latest videos here.</p>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            {token ? "You don't have any YouTube subscriptions." : "Subscribe to your favorite channels to see their latest videos here."}
+          </p>
         </div>
       ) : (
         <div className="video-grid">
@@ -421,16 +506,33 @@ const SubscriptionsPage = () => {
   );
 };
 
-const StoragePage = ({ storageKey, title, emptyMessage }: { storageKey: string, title: string, emptyMessage: string }) => {
-  const [videos, setVideos] = useLocalStorage<Video[]>(storageKey, []);
+const StoragePage = ({ storageKey, title, emptyMessage, useYouTubeLikes = false }: { storageKey: string, title: string, emptyMessage: string, useYouTubeLikes?: boolean }) => {
+  const [localVideos, setVideos] = useLocalStorage<Video[]>(storageKey, []);
+  const { token } = React.useContext(AuthContext);
+  const [youtubeLikes, setYoutubeLikes] = useState<Video[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (useYouTubeLikes && token) {
+      setLoading(true);
+      fetchLikedVideos(token).then(vids => {
+        setYoutubeLikes(vids);
+        setLoading(false);
+      });
+    }
+  }, [useYouTubeLikes, token]);
+
+  const videos = (useYouTubeLikes && token) ? youtubeLikes : localVideos;
 
   return (
     <div style={{ padding: '24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h2 style={{ fontSize: '24px', fontWeight: 700 }}>{title}</h2>
-        {videos.length > 0 && <button className="btn" onClick={() => setVideos([])}>Clear All</button>}
+        {(!useYouTubeLikes || !token) && videos.length > 0 && <button className="btn" onClick={() => setVideos([])}>Clear All</button>}
       </div>
-      {videos.length === 0 ? (
+      {loading ? (
+        <p style={{ color: 'var(--text-secondary)' }}>Syncing from YouTube...</p>
+      ) : videos.length === 0 ? (
         <p style={{ color: 'var(--text-secondary)' }}>{emptyMessage}</p>
       ) : (
         <div className="video-grid">
@@ -525,29 +627,31 @@ function App() {
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   return (
-    <BrowserRouter>
-      <div className="app-container" style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
-        <Navbar toggleSidebar={toggleSidebar} />
-        <div className="main-content" style={{ display: 'flex', flex: 1, marginTop: '70px', overflow: 'hidden' }}>
-          <Sidebar isOpen={isSidebarOpen} closeSidebar={() => setIsSidebarOpen(false)} />
-          <main className="content-area" id="scrollable-content" style={{ flex: 1, overflowY: 'auto' }}>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/shorts" element={<ShortsPage />} />
-              <Route path="/trending" element={<HomePage />} />
-              <Route path="/search/:query" element={<SearchPage />} />
-              <Route path="/category/:category" element={<CategoryPage />} />
-              <Route path="/channel/:channelName" element={<ChannelPage />} />
-              <Route path="/subscriptions" element={<SubscriptionsPage />} />
-              <Route path="/watch/:id" element={<WatchPage />} />
-              <Route path="/history" element={<StoragePage storageKey="aurastream_history" title="Watch History" emptyMessage="You haven't watched any videos yet." />} />
-              <Route path="/library" element={<StoragePage storageKey="aurastream_library" title="Saved Library" emptyMessage="Your library is empty. Save some videos to watch later!" />} />
-              <Route path="/liked" element={<StoragePage storageKey="aurastream_liked_videos" title="Liked Videos" emptyMessage="You haven't liked any videos yet." />} />
-            </Routes>
-          </main>
+    <AuthProvider>
+      <BrowserRouter>
+        <div className="app-container" style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+          <Navbar toggleSidebar={toggleSidebar} />
+          <div className="main-content" style={{ display: 'flex', flex: 1, marginTop: '70px', overflow: 'hidden' }}>
+            <Sidebar isOpen={isSidebarOpen} closeSidebar={() => setIsSidebarOpen(false)} />
+            <main className="content-area" id="scrollable-content" style={{ flex: 1, overflowY: 'auto' }}>
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/shorts" element={<ShortsPage />} />
+                <Route path="/trending" element={<HomePage />} />
+                <Route path="/search/:query" element={<SearchPage />} />
+                <Route path="/category/:category" element={<CategoryPage />} />
+                <Route path="/channel/:channelName" element={<ChannelPage />} />
+                <Route path="/subscriptions" element={<SubscriptionsPage />} />
+                <Route path="/watch/:id" element={<WatchPage />} />
+                <Route path="/history" element={<StoragePage storageKey="aurastream_history" title="Watch History" emptyMessage="You haven't watched any videos yet." />} />
+                <Route path="/library" element={<StoragePage storageKey="aurastream_library" title="Saved Library" emptyMessage="Your library is empty. Save some videos to watch later!" />} />
+                <Route path="/liked" element={<StoragePage storageKey="aurastream_liked_videos" title="Liked Videos" emptyMessage="You haven't liked any videos yet." useYouTubeLikes={true} />} />
+              </Routes>
+            </main>
+          </div>
         </div>
-      </div>
-    </BrowserRouter>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 
