@@ -384,13 +384,23 @@ const FeedPage = ({ fetchFunction, title }: { fetchFunction: (continuation?: str
   );
 };
 
+const REFRESH_INTERVAL_MS = 60 * 1000; // 1 minute auto-refresh
+
+const FILLER_QUERIES = [
+  'viral videos this week', 'best moments 2024', 'trending topics', 
+  'top creators today', 'most watched right now', 'new music videos',
+  'amazing discoveries', 'world news highlights', 'funny clips', 'sports highlights'
+];
+
 const HomePage = () => {
   const [localSubscriptions] = useLocalStorage<Subscription[]>('aurastream_subscriptions', []);
   const { token } = React.useContext(AuthContext);
   const [youtubeSubs, setYoutubeSubs] = useState<Subscription[]>([]);
   const [subsLoaded, setSubsLoaded] = useState(false);
-  const [feedSections, setFeedSections] = useState<{title: string, videos: Video[]}[]>([]);
+  const [feedSections, setFeedSections] = useState<{title: string, videos: Video[], isNew?: boolean}[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (token) {
@@ -398,7 +408,7 @@ const HomePage = () => {
       fetchYouTubeSubscriptions(token).then(subs => {
         setYoutubeSubs(subs);
         setSubsLoaded(true);
-      });
+      }).catch(() => setSubsLoaded(true));
     } else {
       setSubsLoaded(true);
     }
@@ -406,71 +416,103 @@ const HomePage = () => {
 
   const subscriptions = token ? youtubeSubs : localSubscriptions;
 
-  useEffect(() => {
-    if (!subsLoaded) return; 
+  const buildFeed = useCallback(async (isAutoRefresh = false) => {
+    if (!isAutoRefresh) setLoading(true);
+    try {
+      const sections: {title: string, videos: Video[], isNew?: boolean}[] = [];
 
-    if (subscriptions.length === 0) {
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-
-    const fetchSmartFeed = async () => {
-      try {
-        const sections: {title: string, videos: Video[]}[] = [];
+      // --- Subscription rows (up to 6 channels, each gets its own row) ---
+      const subsToShow = subscriptions.slice(0, 6);
+      if (subsToShow.length > 0) {
+        const subResults = await Promise.all(subsToShow.map(sub => fetchSearch(sub.name)));
         
-        const topSubs = subscriptions.slice(0, 4);
-        if (topSubs.length > 0) {
-          const subResults = await Promise.all(topSubs.map(sub => fetchSearch(sub.name)));
-          const mixedSubs: Video[] = [];
-          for (let i = 0; i < 6; i++) {
-            subResults.forEach(res => {
-              if (res.videos[i]) mixedSubs.push(res.videos[i]);
-            });
-          }
-          if (mixedSubs.length > 0) {
-            sections.push({ title: 'Latest from your Subscriptions', videos: mixedSubs });
-          }
+        // Mixed row: weave one from each channel
+        const mixedSubs: Video[] = [];
+        const maxLen = Math.max(...subResults.map(r => r.videos.length));
+        for (let i = 0; i < maxLen; i++) {
+          subResults.forEach(res => { if (res.videos[i]) mixedSubs.push(res.videos[i]); });
+        }
+        if (mixedSubs.length > 0) {
+          sections.push({ title: '🔔 Latest from your Subscriptions', videos: mixedSubs, isNew: isAutoRefresh });
         }
 
-        if (subscriptions.length > 2) {
-          const randomSub = subscriptions[Math.floor(Math.random() * subscriptions.length)];
-          const recResults = await fetchSearch(`${randomSub.name} related content`);
-          if (recResults.videos.length > 0) {
-            sections.push({ title: `Because you follow ${randomSub.name}`, videos: recResults.videos.slice(0, 12) });
+        // Per-channel rows for subs with enough videos
+        subResults.forEach((res, idx) => {
+          if (res.videos.length >= 4 && subsToShow[idx]) {
+            sections.push({ title: `📺 ${subsToShow[idx].name}`, videos: res.videos.slice(0, 8) });
           }
-        }
-
-        setFeedSections(sections);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
+        });
       }
-    };
 
-    fetchSmartFeed();
-  }, [subscriptions, subsLoaded]);
+      // --- Filler rows to ensure an ocean of videos ---
+      const MIN_SECTIONS = 5;
+      const fillerNeeded = Math.max(0, MIN_SECTIONS - sections.length);
+      const shuffledFillers = [...FILLER_QUERIES].sort(() => Math.random() - 0.5).slice(0, fillerNeeded + 2);
+      const fillerResults = await Promise.all(shuffledFillers.map(q => fetchSearch(q)));
+      const fillerTitles = ['🌊 Recommended for You', '🔥 Trending Now', '✨ Popular Right Now', '🎬 Worth Watching', '🌍 Around the World'];
+      
+      fillerResults.forEach((res, idx) => {
+        if (res.videos.length > 0) {
+          sections.push({ title: fillerTitles[idx % fillerTitles.length], videos: res.videos.slice(0, 12) });
+        }
+      });
 
-  if (loading) {
-    return <div style={{ padding: '24px', display: 'flex', justifyContent: 'center' }}><div className="loading-spinner"></div></div>;
-  }
+      // --- Trending top-up ---
+      const trending = await fetchTrending();
+      if (trending.videos.length > 0) {
+        sections.push({ title: '📈 Trending Worldwide', videos: trending.videos.slice(0, 16) });
+      }
 
-  if (feedSections.length === 0) {
-    return <FeedPage fetchFunction={fetchTrending} title="Trending Now" />;
-  }
+      setFeedSections(sections);
+      setLastRefreshed(new Date());
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [subscriptions]);
+
+  useEffect(() => {
+    if (!subsLoaded) return;
+    buildFeed(false);
+
+    // Auto-refresh every minute
+    if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+    refreshTimerRef.current = setInterval(() => buildFeed(true), REFRESH_INTERVAL_MS);
+    return () => { if (refreshTimerRef.current) clearInterval(refreshTimerRef.current); };
+  }, [subsLoaded, buildFeed]);
 
   return (
     <div style={{ padding: '24px' }}>
-      {feedSections.map((sec, idx) => (
-        <div key={idx} style={{ marginBottom: '40px' }}>
-          <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '24px' }}>{sec.title}</h2>
-          <div className="video-grid">
-            {sec.videos.map((video, vIdx) => <VideoCard key={`${video.id}-${vIdx}`} video={video} />)}
-          </div>
+      {/* Refresh bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {loading && <div style={{ width: '16px', height: '16px', border: '2px solid var(--bg-tertiary)', borderTop: '2px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />}
+          {lastRefreshed && !loading && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Updated {lastRefreshed.toLocaleTimeString()}</span>}
         </div>
-      ))}
+        <button className="btn" onClick={() => buildFeed(false)} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '20px', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          ↻ Refresh Feed
+        </button>
+      </div>
+
+      {loading && feedSections.length === 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '80px 0' }}>
+          <div style={{ width: '48px', height: '48px', border: '3px solid var(--bg-tertiary)', borderTop: '3px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+          <p style={{ color: 'var(--text-secondary)' }}>Loading your feed...</p>
+        </div>
+      ) : (
+        feedSections.map((sec, idx) => (
+          <div key={idx} style={{ marginBottom: '48px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {sec.title}
+              {sec.isNew && <span style={{ fontSize: '11px', background: 'var(--accent-primary)', color: 'white', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>NEW</span>}
+            </h2>
+            <div className="video-grid">
+              {sec.videos.map((video, vIdx) => <VideoCard key={`${video.id}-${vIdx}`} video={video} />)}
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 };
@@ -481,10 +523,25 @@ const SearchPage = () => {
   return <FeedPage fetchFunction={fetchFunc} title={`Search Results for "${query}"`} />;
 };
 
+const CATEGORY_SEARCH_MAP: Record<string, { query: string; title: string }> = {
+  music: { query: 'music videos 2024', title: '🎵 Music' },
+  gaming: { query: 'gaming videos gameplay 2024', title: '🎮 Gaming' },
+  news: { query: 'world news today breaking news', title: '📰 News' },
+  sports: { query: 'sports highlights 2024', title: '🏆 Sports' },
+  podcasts: { query: 'full podcast episode 2024', title: '🎙️ Podcasts' },
+  live: { query: 'live stream event concert', title: '🔴 Live Streams' },
+  education: { query: 'educational documentary learning tutorial', title: '📚 Education' },
+  movies: { query: 'full movie free trailer official', title: '🎬 Movies' },
+};
+
 const CategoryPage = () => {
   const { category } = useParams();
-  const fetchFunc = useCallback((c?: string) => fetchCategory(category || 'music', c), [category]);
-  return <FeedPage fetchFunction={fetchFunc} title={`${category?.charAt(0).toUpperCase()}${category?.slice(1)} Content`} />;
+  const cat = CATEGORY_SEARCH_MAP[category?.toLowerCase() || ''];
+  const fetchFunc = useCallback(
+    (c?: string) => cat ? fetchSearch(cat.query, c) : fetchTrending(c),
+    [cat]
+  );
+  return <FeedPage fetchFunction={fetchFunc} title={cat?.title || `${category?.charAt(0).toUpperCase()}${category?.slice(1)}`} />;
 };
 
 const ShortsPage = () => {
