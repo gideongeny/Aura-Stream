@@ -226,3 +226,18 @@ body {
   }
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Hide brand name text on very small screens to keep navbar clean */
+@media (max-width: 480px) {
+  .brand-name { display: none; }
+  .search-form { width: 180px !important; }
+}

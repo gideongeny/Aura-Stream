@@ -54,14 +54,19 @@ const Navbar = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const navigate = useNavigate();
   const searchRef = useRef<HTMLFormElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
   const { profile, login, logout } = React.useContext(AuthContext);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setShowSuggestions(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setShowProfileMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -101,7 +106,7 @@ const Navbar = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
           <div style={{ width: '40px', height: '40px', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Play fill="white" stroke="none" size={20} />
           </div>
-          <h1 className="gradient-text" style={{ fontSize: '24px', fontWeight: 800 }}>AuraStream</h1>
+          <h1 className="gradient-text brand-name" style={{ fontSize: '24px', fontWeight: 800 }}>AuraStream</h1>
         </Link>
       </div>
       
@@ -126,7 +131,7 @@ const Navbar = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
             {suggestions.map((s, i) => (
               <div 
                 key={i} 
-                onClick={(e) => handleSearch(e, s)}
+                onClick={(e) => handleSearch(e as any, s)}
                 style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: i < suggestions.length - 1 ? '1px solid var(--border-color)' : 'none' }}
                 onMouseEnter={(e) => e.currentTarget.style.background = 'var(--border-hover)'}
                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
@@ -139,23 +144,72 @@ const Navbar = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
         )}
       </form>
 
-      <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-        {profile ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <img src={profile.picture} alt={profile.name} style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} />
-            <button className="btn hover-lift" onClick={logout} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-tertiary)', borderRadius: '24px' }}>
-              <LogOut size={16} /> Logout
-            </button>
+      {/* Profile Avatar — always at far right */}
+      <div ref={profileRef} style={{ position: 'relative' }}>
+        <button
+          onClick={() => profile ? setShowProfileMenu(p => !p) : login()}
+          style={{
+            width: '40px', height: '40px', borderRadius: '50%', border: profile ? '2px solid var(--accent-primary)' : '2px solid var(--border-color)',
+            background: 'var(--bg-tertiary)', cursor: 'pointer', overflow: 'hidden',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'border-color 0.2s, box-shadow 0.2s',
+            boxShadow: showProfileMenu ? '0 0 0 3px rgba(232,62,140,0.3)' : 'none',
+            padding: 0,
+          }}
+          title={profile ? profile.name : 'Sign in'}
+        >
+          {profile ? (
+            <img src={profile.picture} alt={profile.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          )}
+        </button>
+
+        {/* Dropdown */}
+        {showProfileMenu && profile && (
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 12px)', right: 0,
+            background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
+            borderRadius: '16px', minWidth: '220px', overflow: 'hidden',
+            boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
+            animation: 'fadeIn 0.15s ease',
+            zIndex: 200,
+          }}>
+            {/* Account info */}
+            <div style={{ padding: '16px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <img src={profile.picture} alt={profile.name} style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--accent-primary)' }} />
+              <div style={{ minWidth: 0 }}>
+                <p style={{ fontWeight: 700, fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.name}</p>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.email}</p>
+              </div>
+            </div>
+            {/* Actions */}
+            <div style={{ padding: '8px' }}>
+              <button
+                onClick={() => { logout(); setShowProfileMenu(false); }}
+                style={{
+                  width: '100%', padding: '10px 12px', background: 'transparent', border: 'none',
+                  color: 'var(--text-primary)', cursor: 'pointer', borderRadius: '10px',
+                  display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', fontFamily: 'inherit',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <LogOut size={16} color="var(--accent-primary)" />
+                Sign out
+              </button>
+            </div>
           </div>
-        ) : (
-          <button className="btn btn-primary hover-lift" onClick={() => login()} style={{ display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '24px' }}>
-            <LogIn size={18} /> Sign In
-          </button>
         )}
       </div>
     </nav>
   );
 };
+
 
 const Sidebar = ({ isOpen, closeSidebar }: { isOpen: boolean, closeSidebar: () => void }) => {
   const location = useLocation();
