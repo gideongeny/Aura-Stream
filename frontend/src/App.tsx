@@ -893,18 +893,6 @@ const WatchPage = () => {
           </button>
         </div>
 
-        {/* Premium AI Summary Box */}
-        <div className="glass-panel" style={{ marginTop: '16px', padding: '16px', background: 'linear-gradient(135deg, rgba(255, 51, 102, 0.1), rgba(124, 58, 237, 0.1))', border: '1px solid rgba(255, 51, 102, 0.3)' }}>
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '12px' }}>
-            <Sparkles size={18} /> AI Summary & Insights
-          </h3>
-          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: 1.6 }}>
-            This video explores in-depth topics related to <strong>{video?.title}</strong> by <strong>{video?.channel}</strong>. The creator discusses key highlights and main takeaways that are highly relevant to viewers interested in this space.
-          </p>
-          <button className="btn hover-lift" style={{ borderRadius: '24px', background: 'var(--accent-secondary)', display: 'flex', gap: '8px', alignItems: 'center', fontSize: '14px' }}>
-            <Wand2 size={16} /> Generate Full Transcript
-          </button>
-        </div>
       </div>
 
       {/* RIGHT COLUMN: Recommendations */}
