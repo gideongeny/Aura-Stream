@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
-import { Home, TrendingUp, BookMarked, History as HistoryIcon, Search, Play, Music, Gamepad2, Newspaper, Trophy, Menu, Tv, ListVideo, UserPlus, UserCheck, Download, ThumbsUp, Smartphone, Podcast, Radio, BookOpen, Film, LogOut } from 'lucide-react';
+import { Home, TrendingUp, BookMarked, History as HistoryIcon, Search, Play, Music, Gamepad2, Newspaper, Trophy, Menu, Tv, ListVideo, UserPlus, UserCheck, Download, ThumbsUp, Smartphone, Podcast, Radio, BookOpen, Film, LogOut, Maximize, Sparkles, ChevronDown, ChevronUp, Wand2 } from 'lucide-react';
 import { useGoogleLogin, googleLogout } from '@react-oauth/google';
 import './index.css';
 import { fetchTrending, fetchSearch, fetchSuggestions } from './api';
@@ -285,6 +285,8 @@ const Sidebar = ({ isOpen, closeSidebar }: { isOpen: boolean, closeSidebar: () =
 
 const VideoCard = ({ video }: { video: Video }) => {
   const [history, setHistory] = useLocalStorage<Video[]>('aurastream_history', []);
+  const [isHovered, setIsHovered] = useState(false);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
 
   const formatLength = (seconds: number) => {
@@ -300,10 +302,34 @@ const VideoCard = ({ video }: { video: Video }) => {
     navigate(`/watch/${video.id}`, { state: { video } });
   };
 
+  const handleMouseEnter = () => {
+    hoverTimerRef.current = setTimeout(() => setIsHovered(true), 800);
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    setIsHovered(false);
+  };
+
   return (
-    <div className="hover-lift" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '12px' }} onClick={handleClick}>
+    <div 
+      className="hover-lift" 
+      style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '12px' }} 
+      onClick={handleClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <div style={{ position: 'relative', width: '100%', paddingTop: '56.25%', borderRadius: '16px', overflow: 'hidden', background: 'var(--bg-tertiary)' }}>
-        <img src={video.thumbnail} alt={video.title} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+        {isHovered ? (
+          <iframe
+            src={`https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&mute=1&controls=0&modestbranding=1&playsinline=1&rel=0`}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+            frameBorder="0"
+            allow="autoplay; encrypted-media"
+          />
+        ) : (
+          <img src={video.thumbnail} alt={video.title} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+        )}
         <div style={{ position: 'absolute', bottom: '8px', right: '8px', background: 'rgba(0,0,0,0.8)', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 600 }}>
           {formatLength(video.lengthSeconds)}
         </div>
@@ -773,6 +799,22 @@ const WatchPage = () => {
   const [library, setLibrary] = useLocalStorage<Video[]>('aurastream_library', []);
   const [likedVideos, setLikedVideos] = useLocalStorage<Video[]>('aurastream_liked_videos', []);
   
+  const [isTheaterMode, setIsTheaterMode] = useState(false);
+  const [recommended, setRecommended] = useState<Video[]>([]);
+  const [loadingRecommended, setLoadingRecommended] = useState(true);
+  const [descExpanded, setDescExpanded] = useState(false);
+
+  useEffect(() => {
+    if (video?.channel) {
+      setLoadingRecommended(true);
+      fetchSearch(video.channel).then(res => {
+        const related = res.videos.filter(v => v.id !== id).slice(0, 15);
+        setRecommended(related);
+        setLoadingRecommended(false);
+      }).catch(() => setLoadingRecommended(false));
+    }
+  }, [video, id]);
+
   const isSaved = library.some(v => v.id === id);
   const isLiked = likedVideos.some(v => v.id === id);
 
@@ -795,9 +837,10 @@ const WatchPage = () => {
   if (!id) return <div>Invalid Video ID</div>;
 
   return (
-    <div style={{ padding: '24px', display: 'flex', gap: '24px', maxWidth: '1600px', margin: '0 auto', width: '100%' }}>
-      <div style={{ flex: '1' }}>
-        <div style={{ position: 'relative', width: '100%', paddingTop: '56.25%', borderRadius: '16px', overflow: 'hidden', background: 'black', boxShadow: 'var(--shadow-glow)' }}>
+    <div style={{ padding: '24px', display: 'flex', flexDirection: isTheaterMode ? 'column' : 'row', gap: '24px', maxWidth: isTheaterMode ? '100%' : '1600px', margin: '0 auto', width: '100%' }}>
+      {/* LEFT COLUMN: Player & Details */}
+      <div style={{ flex: isTheaterMode ? '1 1 100%' : '3', minWidth: '0' }}>
+        <div style={{ position: 'relative', width: '100%', paddingTop: isTheaterMode ? '45%' : '56.25%', borderRadius: '16px', overflow: 'hidden', background: 'black', boxShadow: 'var(--shadow-glow)' }}>
           <iframe 
             src={`https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1`}
             title="YouTube video player" 
@@ -808,7 +851,7 @@ const WatchPage = () => {
           ></iframe>
         </div>
         <h1 style={{ fontSize: '24px', fontWeight: 700, margin: '20px 0 10px 0' }}>{video?.title || 'Premium Video Stream'}</h1>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--bg-tertiary)', overflow: 'hidden' }}>
               {video?.channelAvatar ? (
@@ -832,13 +875,75 @@ const WatchPage = () => {
             <button className="btn hover-lift" style={{ borderRadius: '24px', background: 'var(--bg-tertiary)', display: 'flex', gap: '8px', alignItems: 'center' }} onClick={() => window.open(`https://ssyoutube.com/watch?v=${id}`, '_blank')}>
               <Download size={18} /> Download
             </button>
+            <button className="btn hover-lift" style={{ borderRadius: '24px', background: isTheaterMode ? 'var(--accent-secondary)' : 'var(--bg-tertiary)', display: 'flex', gap: '8px', alignItems: 'center' }} onClick={() => setIsTheaterMode(!isTheaterMode)} title="Theater Mode">
+              <Maximize size={18} />
+            </button>
           </div>
         </div>
-        <div className="glass-panel" style={{ marginTop: '16px', padding: '16px', background: 'var(--bg-tertiary)' }}>
+        
+        {/* Expandable Description */}
+        <div className="glass-panel hover-lift" style={{ marginTop: '16px', padding: '16px', background: 'var(--bg-tertiary)', cursor: 'pointer' }} onClick={() => setDescExpanded(!descExpanded)}>
           <p style={{ fontWeight: 600, fontSize: '14px' }}>{video?.views} views • {video?.timestamp}</p>
-          <p style={{ marginTop: '8px', color: 'var(--text-secondary)' }}>Premium ad-reduced playback powered by AuraStream.</p>
+          <div style={{ marginTop: '8px', color: 'var(--text-secondary)', display: descExpanded ? 'block' : '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            Premium ad-reduced playback powered by AuraStream. Enjoy an uninterrupted experience with true AMOLED dark mode, offline downloads, and zero forced tracking.<br/><br/>
+            Support the creator by checking out their channel page!
+          </div>
+          <button style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontWeight: 700, marginTop: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {descExpanded ? <>Show Less <ChevronUp size={16}/></> : <>Show More <ChevronDown size={16}/></>}
+          </button>
+        </div>
+
+        {/* Premium AI Summary Box */}
+        <div className="glass-panel" style={{ marginTop: '16px', padding: '16px', background: 'linear-gradient(135deg, rgba(255, 51, 102, 0.1), rgba(124, 58, 237, 0.1))', border: '1px solid rgba(255, 51, 102, 0.3)' }}>
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '12px' }}>
+            <Sparkles size={18} /> AI Summary & Insights
+          </h3>
+          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: 1.6 }}>
+            This video explores in-depth topics related to <strong>{video?.title}</strong> by <strong>{video?.channel}</strong>. The creator discusses key highlights and main takeaways that are highly relevant to viewers interested in this space.
+          </p>
+          <button className="btn hover-lift" style={{ borderRadius: '24px', background: 'var(--accent-secondary)', display: 'flex', gap: '8px', alignItems: 'center', fontSize: '14px' }}>
+            <Wand2 size={16} /> Generate Full Transcript
+          </button>
         </div>
       </div>
+
+      {/* RIGHT COLUMN: Recommendations */}
+      {!isTheaterMode && (
+        <div style={{ flex: '1', minWidth: '350px' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '16px' }}>Up Next</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {loadingRecommended ? (
+              Array(5).fill(0).map((_, i) => (
+                <div key={i} style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ width: '168px', height: '94px', background: 'var(--bg-tertiary)', borderRadius: '12px', flexShrink: 0, animation: 'pulse 1.5s infinite' }}></div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', padding: '4px 0' }}>
+                    <div style={{ height: '14px', width: '90%', background: 'var(--bg-tertiary)', borderRadius: '4px', animation: 'pulse 1.5s infinite' }}></div>
+                    <div style={{ height: '14px', width: '60%', background: 'var(--bg-tertiary)', borderRadius: '4px', animation: 'pulse 1.5s infinite' }}></div>
+                  </div>
+                </div>
+              ))
+            ) : recommended.length > 0 ? (
+              recommended.map(rec => (
+                <Link to={`/watch/${rec.id}`} state={{ video: rec }} key={rec.id} className="hover-lift" style={{ display: 'flex', gap: '12px', textDecoration: 'none', color: 'inherit' }}>
+                  <div style={{ width: '168px', flexShrink: 0, position: 'relative', paddingTop: 'calc(168px * 9 / 16)', borderRadius: '12px', overflow: 'hidden', background: 'var(--bg-tertiary)' }}>
+                    <img src={rec.thumbnail} alt={rec.title} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <div style={{ position: 'absolute', bottom: '4px', right: '4px', background: 'rgba(0,0,0,0.8)', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+                      {rec.lengthSeconds ? `${Math.floor(rec.lengthSeconds / 60)}:${(rec.lengthSeconds % 60).toString().padStart(2, '0')}` : 'Live'}
+                    </div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ fontSize: '14px', fontWeight: 600, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', marginBottom: '4px' }}>{rec.title}</h4>
+                    <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{rec.channel}</p>
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{rec.views}</p>
+                  </div>
+                </Link>
+              ))
+            ) : (
+              <p style={{ color: 'var(--text-secondary)' }}>No recommendations found.</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
