@@ -385,8 +385,86 @@ const FeedPage = ({ fetchFunction, title }: { fetchFunction: (continuation?: str
 };
 
 const HomePage = () => {
-  const fetchFunc = useCallback((c?: string) => fetchTrending(c), []);
-  return <FeedPage fetchFunction={fetchFunc} title="Trending Now" />;
+  const [localSubscriptions] = useLocalStorage<Subscription[]>('aurastream_subscriptions', []);
+  const { token } = React.useContext(AuthContext);
+  const [youtubeSubs, setYoutubeSubs] = useState<Subscription[]>([]);
+  const [feedSections, setFeedSections] = useState<{title: string, videos: Video[]}[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (token) {
+      fetchYouTubeSubscriptions(token).then(subs => setYoutubeSubs(subs));
+    }
+  }, [token]);
+
+  const subscriptions = token ? youtubeSubs : localSubscriptions;
+
+  useEffect(() => {
+    if (!token && localSubscriptions.length === 0) {
+      setLoading(false);
+      return;
+    }
+    if (token && youtubeSubs.length === 0) return; 
+
+    setLoading(true);
+
+    const fetchSmartFeed = async () => {
+      try {
+        const sections: {title: string, videos: Video[]}[] = [];
+        
+        const topSubs = subscriptions.slice(0, 4);
+        if (topSubs.length > 0) {
+          const subResults = await Promise.all(topSubs.map(sub => fetchSearch(sub.name)));
+          const mixedSubs: Video[] = [];
+          for (let i = 0; i < 6; i++) {
+            subResults.forEach(res => {
+              if (res.videos[i]) mixedSubs.push(res.videos[i]);
+            });
+          }
+          if (mixedSubs.length > 0) {
+            sections.push({ title: 'Latest from your Subscriptions', videos: mixedSubs });
+          }
+        }
+
+        if (subscriptions.length > 2) {
+          const randomSub = subscriptions[Math.floor(Math.random() * subscriptions.length)];
+          const recResults = await fetchSearch(`${randomSub.name} related content`);
+          if (recResults.videos.length > 0) {
+            sections.push({ title: `Because you follow ${randomSub.name}`, videos: recResults.videos.slice(0, 12) });
+          }
+        }
+
+        setFeedSections(sections);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSmartFeed();
+  }, [subscriptions, token]);
+
+  if (loading) {
+    return <div style={{ padding: '24px', display: 'flex', justifyContent: 'center' }}><div className="loading-spinner"></div></div>;
+  }
+
+  if (feedSections.length === 0) {
+    return <FeedPage fetchFunction={fetchTrending} title="Trending Now" />;
+  }
+
+  return (
+    <div style={{ padding: '24px' }}>
+      {feedSections.map((sec, idx) => (
+        <div key={idx} style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '24px' }}>{sec.title}</h2>
+          <div className="video-grid">
+            {sec.videos.map((video, vIdx) => <VideoCard key={`${video.id}-${vIdx}`} video={video} />)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 };
 
 const SearchPage = () => {
