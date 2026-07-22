@@ -659,8 +659,13 @@ const ChannelPage = () => {
   const { channelName } = useParams();
   const location = useLocation();
   const channelAvatar = location.state?.channelAvatar;
-  const fetchFunc = useCallback((c?: string) => fetchSearch(channelName || '', c), [channelName]);
-  const [activeTab, setActiveTab] = useState('Videos');
+  const [activeTab, setActiveTab] = useState('Home');
+
+  const getFetchFunction = useCallback(() => {
+    if (activeTab === 'Shorts') return (c?: string) => fetchSearch(`${channelName} shorts`, c);
+    if (activeTab === 'Playlists') return (c?: string) => fetchSearch(`${channelName} full playlist`, c);
+    return (c?: string) => fetchSearch(channelName || '', c);
+  }, [channelName, activeTab]);
 
   // A seeded hash function to generate a consistent gradient banner based on the channel name
   const getBannerGradient = (name: string) => {
@@ -673,41 +678,42 @@ const ChannelPage = () => {
 
   return (
     <div style={{ padding: '0 0 24px 0' }}>
-      {/* Dynamic Image Banner */}
-      <div style={{ 
-        height: '200px', 
-        width: '100%', 
-        background: channelAvatar ? `url(${channelAvatar}) center/cover no-repeat` : getBannerGradient(channelName || 'default'),
-        position: 'relative',
-        overflow: 'hidden'
-      }}>
-        {channelAvatar && <div style={{ position: 'absolute', inset: 0, backdropFilter: 'blur(40px)', background: 'rgba(0,0,0,0.3)' }} />}
+      {/* Banner matching YouTube bounds */}
+      <div style={{ padding: '16px 48px 0' }}>
+        <div style={{ 
+          height: '212px', 
+          width: '100%', 
+          borderRadius: '16px',
+          background: channelAvatar ? `url(${channelAvatar}) center/cover no-repeat` : getBannerGradient(channelName || 'default'),
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          {channelAvatar && <div style={{ position: 'absolute', inset: 0, backdropFilter: 'blur(30px)', background: 'rgba(0,0,0,0.4)' }} />}
+        </div>
       </div>
       
       {/* Profile Section */}
-      <div style={{ padding: '0 48px', marginTop: '-50px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '24px' }}>
-            <div style={{ width: '128px', height: '128px', borderRadius: '50%', background: 'var(--bg-tertiary)', border: '4px solid var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, boxShadow: '0 8px 16px rgba(0,0,0,0.5)' }}>
-              {channelAvatar ? (
-                <img src={channelAvatar} alt={channelName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <Play size={48} fill="var(--text-secondary)" />
-              )}
-            </div>
-            <div style={{ paddingBottom: '8px' }}>
-              <h1 style={{ fontSize: '36px', fontWeight: 800 }}>{channelName}</h1>
-              <p style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>Premium Creator • Explore their latest content</p>
-            </div>
+      <div style={{ padding: '24px 48px 0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '24px' }}>
+          <div style={{ width: '128px', height: '128px', borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+            {channelAvatar ? (
+              <img src={channelAvatar} alt={channelName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <Play size={48} fill="var(--text-secondary)" />
+            )}
           </div>
-          <div style={{ paddingBottom: '16px' }}>
-            <SubscribeButton channelName={channelName || ''} channelAvatar={channelAvatar || ''} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h1 style={{ fontSize: '36px', fontWeight: 800 }}>{channelName}</h1>
+            <p style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>Premium Creator • Explore their latest content</p>
+            <div style={{ marginTop: '16px' }}>
+              <SubscribeButton channelName={channelName || ''} channelAvatar={channelAvatar || ''} />
+            </div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: '32px', borderBottom: '1px solid var(--border-color)', marginTop: '8px', overflowX: 'auto' }}>
-          {['Home', 'Videos', 'Shorts', 'Playlists', 'Community'].map(tab => (
+        <div style={{ display: 'flex', gap: '32px', borderBottom: '1px solid var(--border-color)', marginTop: '16px', overflowX: 'auto' }}>
+          {['Home', 'Videos', 'Shorts', 'Playlists'].map(tab => (
             <button 
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -726,13 +732,7 @@ const ChannelPage = () => {
 
       {/* Content */}
       <div style={{ padding: '24px 48px' }}>
-        {activeTab === 'Videos' || activeTab === 'Home' ? (
-          <FeedPage fetchFunction={fetchFunc} title="" />
-        ) : (
-          <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--text-secondary)' }}>
-            <p>This section is currently empty or under development.</p>
-          </div>
-        )}
+        <FeedPage fetchFunction={getFetchFunction()} title="" />
       </div>
     </div>
   );
