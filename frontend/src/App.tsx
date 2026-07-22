@@ -388,23 +388,31 @@ const HomePage = () => {
   const [localSubscriptions] = useLocalStorage<Subscription[]>('aurastream_subscriptions', []);
   const { token } = React.useContext(AuthContext);
   const [youtubeSubs, setYoutubeSubs] = useState<Subscription[]>([]);
+  const [subsLoaded, setSubsLoaded] = useState(false);
   const [feedSections, setFeedSections] = useState<{title: string, videos: Video[]}[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (token) {
-      fetchYouTubeSubscriptions(token).then(subs => setYoutubeSubs(subs));
+      setSubsLoaded(false);
+      fetchYouTubeSubscriptions(token).then(subs => {
+        setYoutubeSubs(subs);
+        setSubsLoaded(true);
+      });
+    } else {
+      setSubsLoaded(true);
     }
   }, [token]);
 
   const subscriptions = token ? youtubeSubs : localSubscriptions;
 
   useEffect(() => {
-    if (!token && localSubscriptions.length === 0) {
+    if (!subsLoaded) return; 
+
+    if (subscriptions.length === 0) {
       setLoading(false);
       return;
     }
-    if (token && youtubeSubs.length === 0) return; 
 
     setLoading(true);
 
@@ -443,7 +451,7 @@ const HomePage = () => {
     };
 
     fetchSmartFeed();
-  }, [subscriptions, token]);
+  }, [subscriptions, subsLoaded]);
 
   if (loading) {
     return <div style={{ padding: '24px', display: 'flex', justifyContent: 'center' }}><div className="loading-spinner"></div></div>;
@@ -514,33 +522,35 @@ const SubscriptionsPage = () => {
   const [localSubscriptions] = useLocalStorage<Subscription[]>('aurastream_subscriptions', []);
   const { token } = React.useContext(AuthContext);
   const [youtubeSubs, setYoutubeSubs] = useState<Subscription[]>([]);
+  const [subsLoaded, setSubsLoaded] = useState(false);
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (token) {
+      setSubsLoaded(false);
       fetchYouTubeSubscriptions(token).then(subs => {
         setYoutubeSubs(subs);
+        setSubsLoaded(true);
       });
+    } else {
+      setSubsLoaded(true);
     }
   }, [token]);
 
   const subscriptions = token ? youtubeSubs : localSubscriptions;
 
   useEffect(() => {
-    if (!token && localSubscriptions.length === 0) {
+    if (!subsLoaded) return;
+
+    if (subscriptions.length === 0) {
       setLoading(false);
       return;
     }
-    if (token && youtubeSubs.length === 0) return; // Wait for subs to load if logged in
 
     setLoading(true);
     const topSubs = subscriptions.slice(0, 10);
-    if (topSubs.length === 0) {
-      setLoading(false);
-      return;
-    }
-
+    
     Promise.all(topSubs.map(sub => fetchSearch(sub.name))).then(results => {
       const mixed: Video[] = [];
       const maxLength = Math.max(...results.map(r => r.videos.length));
